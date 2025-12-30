@@ -4,50 +4,48 @@
   <link rel="stylesheet" type="text/css" href="../../css/adapter.css"/>
   <script type="text/javascript" src="../../lib/js/jquery-3.2.1.min.js"></script>
   <script type="text/javascript" src="../../js/adapter-settings.js"></script>
+  <style>
+    .edupage-logo { width: 64px; height: 64px; vertical-align: middle; margin-right: 10px; }
+    .edupage-title { display: inline-block; vertical-align: middle; }
+    .settings-table td { padding: 6px 8px; }
+    .settings-table td:first-child { white-space: nowrap; padding-right: 18px; }
+    .w100 { width: 100%; box-sizing: border-box; }
+  </style>
 </head>
 
 <body>
-  <div class="m adapter-container">
-    <div class="row">
-      <div class="col s12 m12 l12">
-        <img src="edupage.png" class="logo" alt="edupage">
-        <h5 class="translate">EduPage settings</h5>
-      </div>
+  <div class="adapter-container">
+    <div style="margin-bottom: 12px;">
+      <img src="edupage.png" class="edupage-logo" alt="edupage">
+      <h4 class="edupage-title translate" style="margin:0;">EduPage settings</h4>
     </div>
 
-    <div class="row">
-      <div class="input-field col s12">
-        <input type="text" id="baseUrl" class="value" />
-        <label for="baseUrl" class="translate">Base URL</label>
-      </div>
-
-      <div class="input-field col s12 m6">
-        <input type="text" id="username" class="value" />
-        <label for="username" class="translate">Username</label>
-      </div>
-
-      <div class="input-field col s12 m6">
-        <input type="password" id="password" class="value" />
-        <label for="password" class="translate">Password</label>
-      </div>
-
-      <div class="input-field col s12 m6">
-        <input type="number" id="intervalMin" class="value" min="5" />
-        <label for="intervalMin" class="translate">Refresh interval (minutes)</label>
-      </div>
-
-      <div class="input-field col s12 m6">
-        <input type="number" id="maxLessons" class="value" min="6" />
-        <label for="maxLessons" class="translate">Max lessons per day</label>
-      </div>
-
-      <div class="input-field col s12">
-        <label>
-          <input type="checkbox" id="enableWeek" class="value" />
-          <span class="translate">Week view</span>
-        </label>
-      </div>
-    </div>
+    <table class="settings-table">
+      <tr>
+        <td><label for="baseUrl" class="translate">Base URL</label></td>
+        <td><input id="baseUrl" type="text" class="value w100" placeholder="https://myschool.edupage.org"/></td>
+      </tr>
+      <tr>
+        <td><label for="username" class="translate">Username</label></td>
+        <td><input id="username" type="text" class="value w100"/></td>
+      </tr>
+      <tr>
+        <td><label for="password" class="translate">Password</label></td>
+        <td><input id="password" type="password" class="value w100"/></td>
+      </tr>
+      <tr>
+        <td><label for="intervalMin" class="translate">Refresh interval (minutes)</label></td>
+        <td><input id="intervalMin" type="number" min="5" class="value w100"/></td>
+      </tr>
+      <tr>
+        <td><label for="maxLessons" class="translate">Max lessons per day</label></td>
+        <td><input id="maxLessons" type="number" min="6" class="value w100"/></td>
+      </tr>
+      <tr>
+        <td><label for="enableWeek" class="translate">Week view</label></td>
+        <td><input id="enableWeek" type="checkbox" class="value"/></td>
+      </tr>
+    </table>
   </div>
 
   <script type="text/javascript">
@@ -73,7 +71,6 @@
       });
 
       onChange(false);
-      if (window.M && M.updateTextFields) M.updateTextFields();
     }
 
     function save(callback) {
@@ -86,7 +83,8 @@
         if ($el.attr('type') === 'checkbox') {
           obj[id] = $el.prop('checked');
         } else if ($el.attr('type') === 'number') {
-          obj[id] = parseInt($el.val(), 10);
+          const v = parseInt($el.val(), 10);
+          obj[id] = Number.isFinite(v) ? v : 0;
         } else {
           obj[id] = $el.val();
         }
