@@ -31,7 +31,7 @@ class Edupage extends utils.Adapter {
     this.setState('info.connection', false, true);
 
     const baseUrl = (this.config.baseUrl || '').trim().replace(/\/+$/, '');
-    if (!baseUrl) return this.log.error('Please set baseUrl (e.g. https://rs-kollnau.edupage.org)');
+    if (!baseUrl) return this.log.error('Please set baseUrl (e.g. https://myschool.edupage.org)');
     if (!this.config.username || !this.config.password) return this.log.error('Please set username/password');
 
     this.maxLessons = Math.max(6, Number(this.config.maxLessons || 12));
@@ -101,38 +101,232 @@ class Edupage extends utils.Adapter {
     }
   }
 
+  _getSubdomainFromBaseUrl(baseUrl) {
+    const u = new URL(baseUrl);
+    const host = u.hostname;
+    return host.split('.')[0];
+  }
+
+  _extractBetween(haystack, start, end) {
+    const s = haystack.indexOf(start);
+    if (s === -1) return null;
+    const rest = haystack.slice(s + start.length);
+    const e = rest.indexOf(end);
+    if (e === -1) return null;
+    return rest.slice(0, e);
+  }
+
+  // ✅ Robust helper: first regex match
+  _extractFirstMatch(text, regex, group = 1) {
+    const m = String(text || '').match(regex);
+    return m ? m[group] : null;
+  }
+
+  // ✅ Robust helper: find gpid + gsh in ttday page
+  _extractGpidAndGsh(html) {
+    const gpid =
+      this._extractFirstMatch(html, /[?&]gpid=(\d+)/) ||
+      this._extractFirstMatch(html, /\bgpid\s*=\s*(\d+)/) ||
+      this._extractFirstMatch(html, /"gpid"\s*:\s*(\d+)/);
+
+    const gsh =
+      this._extractFirstMatch(html, /[?&]gsh=([^"&]+)/) ||
+      this._extractFirstMatch(html, /\bgsh\s*=\s*"([^"]+)"/) ||
+      this._extractFirstMatch(html, /"gsh"\s*:\s*"([^"]+)"/);
+
+    return { gpid, gsh };
+  }
+
+  async edupageLogin(baseUrl, username, password) {
+    const subdomain = this._getSubdomainFromBaseUrl(baseUrl);
+
+    // 1) GET MainLogin (csrftoken)
+    const loginPageUrl = `https://${subdomain}.edupage.org/login/?cmd=MainLogin`;
+    const r1 = await this.http.get(loginPageUrl);
+    const html1 = r1.data;
+
+    const csrfToken = this._extractBetween(html1, '"csrftoken":"', '"');
+    if (!csrfToken) throw new Error('EduPage login: csrftoken not found');
+
+    // 2) POST edubarLogin.php
+    const loginPostUrl = `https://${subdomain}.edupage.org/login/edubarLogin.php`;
+    const r2 = await this.http.post(loginPostUrl, null, {
+      params: { csrfauth: csrfToken, username, password },
+      maxRedirects: 5,
+      validateStatus: s => s >= 200 && s < 400,
+    });
+
+    const finalUrl = (r2?.request?.res?.responseUrl) || '';
+    if (finalUrl.includes('cap=1') || finalUrl.includes('lerr=')) {
+      throw new Error('EduPage login blocked (captcha / rate-limit)');
+    }
+    if (finalUrl.includes('bad=1')) {
+      throw new Error('EduPage login failed (bad credentials)');
+    }
+
+    const html2 = r2.data;
+
+    // 3) Parse userhome(JSON) + gsec hash
+    const userhomeRaw = this._extractBetween(html2, 'userhome(', ');');
+    if (!userhomeRaw) throw new Error('EduPage login: userhome(JSON) not found');
+
+    let data;
+    try {
+      const cleaned = String(userhomeRaw).replace(/\t|\n|\r/g, '');
+      data = JSON.parse(cleaned);
+    } catch (e) {
+      throw new Error(`EduPage login: failed to parse userhome JSON: ${e?.message || e}`);
+    }
+
+    const gsecHash = this._extractBetween(html2, 'ASC.gsechash="', '"');
+    if (!gsecHash) throw new Error('EduPage login: ASC.gsechash not found');
+
+    const userId = data?.userid;
+    if (!userId) throw new Error('EduPage login: userid missing in userhome JSON');
+
+    return { subdomain, data, gsecHash, userId };
+  }
+
+  async edupageGetMyDayPlan(baseUrl, session, dateISO) {
+    const { subdomain, userId } = session;
+
+    // 1) GET dashboard/eb.php?mode=ttday -> extract gpid + gsh (robust)
+    const csrfUrl = `https://${subdomain}.edupage.org/dashboard/eb.php?mode=ttday`;
+    const r1 = await this.http.get(csrfUrl);
+    const html = r1.data;
+
+    const { gpid, gsh } = this._extractGpidAndGsh(html);
+    if (!gpid || !gsh) throw new Error('EduPage timetable: gpid/gsh missing');
+
+    const nextGpid = Number(gpid) + 1;
+
+    // 2) POST /gcall action=loadData ...
+    const form = new URLSearchParams({
+      gpid: String(nextGpid),
+      gsh: String(gsh),
+      action: 'loadData',
+      user: String(userId),
+      changes: '{}',
+      date: dateISO,
+      dateto: dateISO,
+      _LJSL: '4096',
+    });
+
+    const r2 = await this.http.post(`https://${subdomain}.edupage.org/gcall`, form.toString(), {
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    });
+
+    const txt = r2.data;
+
+    const responseStart = `${userId}",`;
+    const idxS = txt.indexOf(responseStart);
+    if (idxS === -1) throw new Error('EduPage timetable: responseStart not found');
+    const after = txt.slice(idxS + responseStart.length);
+    const idxE = after.lastIndexOf(',[');
+    if (idxE === -1) throw new Error('EduPage timetable: responseEnd not found');
+
+    const jsonStr = after.slice(0, idxE);
+    let payload;
+    try {
+      payload = JSON.parse(jsonStr);
+    } catch (e) {
+      throw new Error(`EduPage timetable: JSON parse failed: ${e?.message || e}`);
+    }
+
+    const plan = payload?.dates?.[dateISO]?.plan;
+    return plan || [];
+  }
+
+  _parsePlanToLessons(plan) {
+    const lessons = [];
+
+    for (const entry of plan) {
+      const header = entry?.header;
+      if (header && (!entry.header || entry?.header?.[0]?.cmd === 'addlesson_t')) continue;
+
+      const start = (entry?.starttime || '').replace('24:00', '23:59');
+      const end = (entry?.endtime || '').replace('24:00', '23:59');
+
+      const isCanceled = !!entry?.removed || entry?.type === 'absent' || entry?.type === '';
+      const isEvent = entry?.type === 'event' || entry?.type === 'out' || !!entry?.main;
+
+      lessons.push({
+        start,
+        end,
+        subjectId: entry?.subjectid ?? null,
+        teacherIds: entry?.teacherids ?? [],
+        roomIds: entry?.classroomids ?? [],
+        groups: (entry?.groupnames ?? []).filter(g => g),
+        canceled: isCanceled,
+        event: isEvent,
+        raw: entry,
+      });
+    }
+
+    lessons.sort((a, b) => (a.start || '').localeCompare(b.start || ''));
+    return lessons;
+  }
+
   async syncOnce(baseUrl) {
     try {
       await this.setStateAsync('meta.lastError', '', true);
 
-      // Login/session handling will be implemented once we have the real endpoints.
-      // For now, just write empty model so VIS schema exists.
+      const session = await this.edupageLogin(baseUrl, this.config.username, this.config.password);
 
-      const model = this.emptyModel();
+      const todayISO = new Date().toISOString().slice(0, 10);
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const tomorrowISO = tomorrow.toISOString().slice(0, 10);
+
+      const [planToday, planTomorrow] = await Promise.all([
+        this.edupageGetMyDayPlan(baseUrl, session, todayISO),
+        this.edupageGetMyDayPlan(baseUrl, session, tomorrowISO),
+      ]);
+
+      const lessonsToday = this._parsePlanToLessons(planToday);
+      const lessonsTomorrow = this._parsePlanToLessons(planTomorrow);
+
+      const mapToAdapterLesson = (l) => ({
+        start: l.start || '',
+        end: l.end || '',
+        subject: l.subjectId != null ? `#${l.subjectId}` : '',
+        teacher: (l.teacherIds || []).map(x => `#${x}`).join(', '),
+        room: (l.roomIds || []).map(x => `#${x}`).join(', '),
+        changed: false,
+        canceled: !!l.canceled,
+        changeText: l.canceled ? 'canceled' : (l.event ? 'event' : ''),
+      });
+
+      const model = {
+        today: { date: todayISO, lessons: lessonsToday.map(mapToAdapterLesson).slice(0, this.maxLessons) },
+        tomorrow: { date: tomorrowISO, lessons: lessonsTomorrow.map(mapToAdapterLesson).slice(0, this.maxLessons) },
+        next: null
+      };
+
+      const nowHHMM = new Date().toTimeString().slice(0, 5);
+      const nextToday = model.today.lessons.find(x => x.start && x.start > nowHHMM && !x.canceled);
+      if (nextToday) {
+        model.next = { when: 'today', ...nextToday };
+      } else {
+        const nextTom = model.tomorrow.lessons.find(x => x.start && !x.canceled);
+        if (nextTom) model.next = { when: 'tomorrow', ...nextTom };
+      }
+
+      const hash = crypto.createHash('sha1').update(JSON.stringify(model)).digest('hex');
+      const prevHash = (await this.getStateAsync('meta.lastHash'))?.val || '';
+      await this.setStateAsync('meta.lastHash', hash, true);
+      await this.setStateAsync('meta.changedSinceLastSync', hash !== prevHash, true);
+
       await this.writeModel(model);
 
-      const hash = crypto.createHash('sha256').update(JSON.stringify(model)).digest('hex');
-      const prev = (await this.getStateAsync('meta.lastHash'))?.val || '';
-      await this.setStateAsync('meta.lastHash', hash, true);
-      await this.setStateAsync('meta.changedSinceLastSync', !!prev && prev !== hash, true);
       await this.setStateAsync('meta.lastSync', Date.now(), true);
-
-      this.setState('info.connection', true, true);
+      await this.setStateAsync('info.connection', true, true);
     } catch (e) {
-      await this.setStateAsync('meta.lastError', String(e?.message || e), true);
-      this.setState('info.connection', false, true);
-      throw e;
+      const msg = e?.message || String(e);
+      await this.setStateAsync('meta.lastError', msg, true);
+      await this.setStateAsync('info.connection', false, true);
+      this.log.warn(`syncOnce failed: ${msg}`);
     }
-  }
-
-  emptyModel() {
-    const today = new Date();
-    const tomorrow = new Date(Date.now() + 86400000);
-    return {
-      today: { date: today.toISOString().slice(0,10), lessons: [] },
-      tomorrow: { date: tomorrow.toISOString().slice(0,10), lessons: [] },
-      next: null
-    };
   }
 
   async writeModel(model) {
