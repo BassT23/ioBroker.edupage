@@ -10,7 +10,7 @@
       "en": "Fetch timetable and substitutions from EduPage"
     },
     "authors": [
-      "Basst <sebastian@familiebecke.de>"
+      "BassT23"
     ],
     "license": "MIT",
     "platform": "Javascript/Node.js",
