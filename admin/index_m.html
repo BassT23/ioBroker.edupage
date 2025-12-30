@@ -1,47 +1,99 @@
-<script type="text/javascript">
+<html>
+<head>
+  <meta charset="UTF-8">
+  <link rel="stylesheet" type="text/css" href="../../css/adapter.css"/>
+  <script type="text/javascript" src="../../lib/js/jquery-3.2.1.min.js"></script>
+  <script type="text/javascript" src="../../js/adapter-settings.js"></script>
+</head>
+
+<body>
+  <div class="m adapter-container">
+    <div class="row">
+      <div class="col s12 m12 l12">
+        <img src="edupage.png" class="logo" alt="edupage">
+        <h5 class="translate">EduPage settings</h5>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="input-field col s12">
+        <input type="text" id="baseUrl" class="value" />
+        <label for="baseUrl" class="translate">Base URL</label>
+      </div>
+
+      <div class="input-field col s12 m6">
+        <input type="text" id="username" class="value" />
+        <label for="username" class="translate">Username</label>
+      </div>
+
+      <div class="input-field col s12 m6">
+        <input type="password" id="password" class="value" />
+        <label for="password" class="translate">Password</label>
+      </div>
+
+      <div class="input-field col s12 m6">
+        <input type="number" id="intervalMin" class="value" min="5" />
+        <label for="intervalMin" class="translate">Refresh interval (minutes)</label>
+      </div>
+
+      <div class="input-field col s12 m6">
+        <input type="number" id="maxLessons" class="value" min="6" />
+        <label for="maxLessons" class="translate">Max lessons per day</label>
+      </div>
+
+      <div class="input-field col s12">
+        <label>
+          <input type="checkbox" id="enableWeek" class="value" />
+          <span class="translate">Week view</span>
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <script type="text/javascript">
     let onChangeFn;
 
     function load(settings, onChange) {
-        onChangeFn = onChange;
+      onChangeFn = onChange;
+      if (!settings) return;
 
-        if (!settings) return;
+      $('.value').each(function () {
+        const $el = $(this);
+        const id = $el.attr('id');
 
-        $('.value').each(function () {
-            const $el = $(this);
-            const id = $el.attr('id');
+        if ($el.attr('type') === 'checkbox') {
+          $el.prop('checked', settings[id]);
+        } else {
+          $el.val(settings[id]);
+        }
+      });
 
-            if ($el.attr('type') === 'checkbox') {
-                $el.prop('checked', settings[id]);
-            } else {
-                $el.val(settings[id]);
-            }
-        });
+      $('.value').on('change input', function () {
+        onChangeFn(true);
+      });
 
-        // 🔴 WICHTIG: change / input Listener
-        $('.value').on('change input', function () {
-            onChangeFn(true);
-        });
-
-        onChange(false);
-        M.updateTextFields();
+      onChange(false);
+      if (window.M && M.updateTextFields) M.updateTextFields();
     }
 
     function save(callback) {
-        const obj = {};
+      const obj = {};
 
-        $('.value').each(function () {
-            const $el = $(this);
-            const id = $el.attr('id');
+      $('.value').each(function () {
+        const $el = $(this);
+        const id = $el.attr('id');
 
-            if ($el.attr('type') === 'checkbox') {
-                obj[id] = $el.prop('checked');
-            } else if ($el.attr('type') === 'number') {
-                obj[id] = parseInt($el.val(), 10);
-            } else {
-                obj[id] = $el.val();
-            }
-        });
+        if ($el.attr('type') === 'checkbox') {
+          obj[id] = $el.prop('checked');
+        } else if ($el.attr('type') === 'number') {
+          obj[id] = parseInt($el.val(), 10);
+        } else {
+          obj[id] = $el.val();
+        }
+      });
 
-        callback(obj);
+      callback(obj);
     }
-</script>
+  </script>
+</body>
+</html>
