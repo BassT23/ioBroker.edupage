@@ -1,221 +1,68 @@
 <!doctype html>
-<html lang="de">
+<html>
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>EduPage</title>
 
+  <!-- ioBroker standard includes -->
   <link rel="stylesheet" type="text/css" href="../../css/adapter.css" />
   <script type="text/javascript" src="../../lib/js/jquery-3.2.1.min.js"></script>
   <script type="text/javascript" src="../../js/adapter-settings.js"></script>
-
-  <style>
-    /* ---------- Layout shell ---------- */
-    .ep-wrap {
-      max-width: 920px;
-      margin: 0 auto;
-      padding: 14px 16px 24px;
-    }
-
-    .ep-header {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      padding: 10px 12px;
-      border-radius: 10px;
-      margin-bottom: 14px;
-      background: rgba(255,255,255,0.06);
-    }
-
-    .ep-logo {
-      width: 54px;
-      height: 54px;
-      border-radius: 10px;
-      flex: 0 0 auto;
-    }
-
-    .ep-title h2 {
-      margin: 0;
-      font-size: 18px;
-      font-weight: 700;
-      letter-spacing: 0.2px;
-    }
-    .ep-title p {
-      margin: 2px 0 0;
-      opacity: 0.8;
-      font-size: 13px;
-    }
-
-    /* ---------- Card ---------- */
-    .ep-card {
-      border-radius: 12px;
-      padding: 16px;
-      background: rgba(255,255,255,0.04);
-      border: 1px solid rgba(255,255,255,0.08);
-    }
-
-    /* ---------- Form grid ---------- */
-    .ep-grid {
-      display: grid;
-      grid-template-columns: 240px 1fr;
-      gap: 12px 16px;
-      align-items: center;
-    }
-
-    .ep-label {
-      font-weight: 600;
-      opacity: 0.9;
-    }
-
-    .ep-help {
-      font-size: 12px;
-      opacity: 0.7;
-      margin-top: 4px;
-      line-height: 1.3;
-    }
-
-    .ep-input, .ep-select {
-      width: 100%;
-      box-sizing: border-box;
-      padding: 9px 10px;
-      border-radius: 10px;
-      border: 1px solid rgba(255,255,255,0.14);
-      background: rgba(0,0,0,0.15);
-      color: inherit;
-      outline: none;
-      transition: border-color .15s ease, background .15s ease;
-    }
-    .ep-input:focus {
-      border-color: rgba(120, 200, 255, 0.6);
-      background: rgba(0,0,0,0.22);
-    }
-    .ep-input::placeholder { opacity: 0.6; }
-
-    .ep-row {
-      display: flex;
-      gap: 10px;
-      align-items: center;
-    }
-    .ep-row > * { flex: 1; }
-
-    /* Password toggle */
-    .ep-passwrap {
-      position: relative;
-    }
-    .ep-eye {
-      position: absolute;
-      right: 8px;
-      top: 50%;
-      transform: translateY(-50%);
-      border: 0;
-      border-radius: 8px;
-      padding: 6px 8px;
-      cursor: pointer;
-      background: rgba(255,255,255,0.08);
-      color: inherit;
-      opacity: 0.9;
-    }
-    .ep-eye:hover { background: rgba(255,255,255,0.12); }
-
-    /* Checkbox row */
-    .ep-check {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-    .ep-check input[type="checkbox"] {
-      width: 18px;
-      height: 18px;
-      accent-color: #5bbcff;
-    }
-
-    /* Divider / footer */
-    .ep-divider {
-      height: 1px;
-      margin: 14px 0;
-      background: rgba(255,255,255,0.08);
-    }
-
-    .ep-note {
-      font-size: 12px;
-      opacity: 0.75;
-      line-height: 1.35;
-    }
-    code.ep-code {
-      padding: 1px 6px;
-      border-radius: 6px;
-      background: rgba(255,255,255,0.08);
-      border: 1px solid rgba(255,255,255,0.08);
-    }
-
-    /* Responsive */
-    @media (max-width: 720px) {
-      .ep-grid { grid-template-columns: 1fr; }
-      .ep-label { margin-top: 6px; }
-    }
-  </style>
 </head>
 
 <body>
-  <div class="ep-wrap">
-    <div class="ep-header">
-      <img src="edupage.png" class="ep-logo" alt="EduPage" />
-      <div class="ep-title">
-        <h2 class="translate">EduPage settings</h2>
-        <p class="translate">Fetch timetable and substitutions from EduPage</p>
+  <div class="m adapter-container">
+    <div class="row">
+      <div class="col s12">
+        <img src="edupage.png" class="logo" alt="edupage" />
+        <h5 class="translate">EduPage settings</h5>
       </div>
     </div>
 
-    <div class="ep-card">
-      <div class="ep-grid">
-        <div class="ep-label">
-          <span class="translate">Base URL</span>
-          <div class="ep-help">Beispiel: <code class="ep-code">https://myschool.edupage.org</code></div>
-        </div>
-        <div>
-          <input id="baseUrl" type="text" class="value ep-input" placeholder="https://myschool.edupage.org" />
-        </div>
-
-        <div class="ep-label"><span class="translate">Username</span></div>
-        <div>
-          <input id="username" type="text" class="value ep-input" autocomplete="username" />
-        </div>
-
-        <div class="ep-label"><span class="translate">Password</span></div>
-        <div class="ep-passwrap">
-          <input id="password" type="password" class="value ep-input" autocomplete="current-password" />
-          <button type="button" class="ep-eye" id="togglePw" title="Show/Hide">👁</button>
-        </div>
-
-        <div class="ep-label"><span class="translate">Refresh interval (minutes)</span></div>
-        <div>
-          <input id="intervalMin" type="number" min="5" class="value ep-input" />
-        </div>
-
-        <div class="ep-label"><span class="translate">Max lessons per day</span></div>
-        <div>
-          <input id="maxLessons" type="number" min="6" class="value ep-input" />
-        </div>
-
-        <div class="ep-label"><span class="translate">Week view</span></div>
-        <div class="ep-check">
-          <input id="enableWeek" type="checkbox" class="value" />
-          <label for="enableWeek" class="translate" style="margin:0; cursor:pointer;">Week view</label>
-        </div>
+    <div class="row">
+      <div class="input-field col s12">
+        <input class="value" id="baseUrl" type="text" placeholder="https://myschool.edupage.org" />
+        <label for="baseUrl" class="translate">Base URL</label>
       </div>
 
-      <div class="ep-divider"></div>
-      <div class="ep-note">
-        <span class="translate">Tip</span>:
-        Wenn die UI nach einem Update komisch aussieht: <code class="ep-code">iobroker upload edupage</code> und Browser mit <code class="ep-code">Strg+F5</code> neu laden.
+      <div class="input-field col s12 m6">
+        <input class="value" id="username" type="text" />
+        <label for="username" class="translate">Username</label>
+      </div>
+
+      <div class="input-field col s12 m6">
+        <input class="value" id="password" type="password" />
+        <label for="password" class="translate">Password</label>
+      </div>
+
+      <div class="input-field col s12 m6">
+        <input class="value" id="intervalMin" type="number" min="5" />
+        <label for="intervalMin" class="translate">Refresh interval (minutes)</label>
+      </div>
+
+      <div class="input-field col s12 m6">
+        <input class="value" id="maxLessons" type="number" min="6" />
+        <label for="maxLessons" class="translate">Max lessons per day</label>
+      </div>
+
+      <div class="col s12">
+        <p>
+          <label>
+            <input class="value" id="enableWeek" type="checkbox" />
+            <span class="translate">Week view</span>
+          </label>
+        </p>
       </div>
     </div>
   </div>
 
   <script type="text/javascript">
+    // IMPORTANT: must be global functions: load/save
     let onChangeFn;
 
     function load(settings, onChange) {
       onChangeFn = onChange;
+
       if (!settings) return;
 
       $('.value').each(function () {
@@ -224,26 +71,20 @@
 
         if ($el.attr('type') === 'checkbox') {
           $el.prop('checked', !!settings[id]);
-        } else if ($el.attr('type') === 'number') {
-          const v = settings[id];
-          $el.val(v !== undefined && v !== null ? v : '');
         } else {
-          $el.val(settings[id] || '');
+          $el.val(settings[id] !== undefined ? settings[id] : '');
         }
       });
 
-      $('.value').on('change input', function () {
+      // change detection (activates save button)
+      $('.value').off('change input').on('change input', function () {
         onChangeFn(true);
       });
 
-      // password toggle
-      $('#togglePw').on('click', function () {
-        const $pw = $('#password');
-        const t = $pw.attr('type') === 'password' ? 'text' : 'password';
-        $pw.attr('type', t);
-      });
-
       onChange(false);
+
+      // Materialize labels update (Admin provides M)
+      if (window.M && M.updateTextFields) M.updateTextFields();
     }
 
     function save(callback) {
