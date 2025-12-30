@@ -2,7 +2,7 @@
   "name": "iobroker.edupage",
   "version": "0.0.1",
   "description": "Fetch timetable and substitutions from EduPage",
-  "author": "Basst23",
+  "author": "BassT23",
   "license": "MIT",
   "main": "main.js",
   "repository": {
