@@ -1,5 +1,5 @@
 {
-  "name": "iobroker.edupage",
+  "name": "ioBroker.edupage",
   "version": "0.0.1",
   "description": "Fetch timetable and substitutions from EduPage",
   "author": "BassT23",
@@ -16,11 +16,12 @@
     "tough-cookie": "^4.1.3"
   },
   "devDependencies": {
-    "@iobroker/testing": "5.2.2"
-  },
+    "@iobroker/testing": "^5.2.2"
+  }
   "scripts": {
     "test": "node main.js --debug"
   },
+  "license": "MIT",
   "engines": {
     "node": ">=20"
   },
