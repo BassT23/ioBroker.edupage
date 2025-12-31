@@ -1,5 +1,5 @@
 {
-  "name": "ioBroker.edupage",
+  "name": "iobroker.edupage",
   "version": "0.0.1",
   "description": "Fetch timetable and substitutions from EduPage",
   "author": "BassT23",
