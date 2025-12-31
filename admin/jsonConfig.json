@@ -4,91 +4,82 @@
   "items": {
     "header": {
       "type": "header",
-      "size": 3,
-      "text": "cfg_header"
+      "text": "cfg_header",
+      "size": 5
     },
+
     "hint": {
-      "type": "staticText",
-      "size": {
-        "xs": 12,
-        "sm": 12,
-        "md": 12,
-        "lg": 12,
-        "xl": 12
-      },
-      "text": "cfg_hint"
+      "type": "text",
+      "text": "cfg_hint",
+      "xs": 12,
+      "sm": 12,
+      "md": 12,
+      "lg": 12,
+      "xl": 12
     },
+
     "baseUrl": {
       "type": "text",
-      "size": {
-        "xs": 12,
-        "sm": 12,
-        "md": 12,
-        "lg": 12,
-        "xl": 12
-      },
       "label": "cfg_baseUrl",
       "help": "cfg_baseUrl_help",
-      "placeholder": "cfg_baseUrl_ph"
+      "placeholder": "https://myschool.edupage.org",
+      "xs": 12,
+      "sm": 12,
+      "md": 12,
+      "lg": 12,
+      "xl": 12
     },
+
     "username": {
       "type": "text",
-      "size": {
-        "xs": 12,
-        "sm": 12,
-        "md": 6,
-        "lg": 6,
-        "xl": 6
-      },
-      "label": "cfg_username"
+      "label": "cfg_username",
+      "xs": 12,
+      "sm": 6,
+      "md": 6,
+      "lg": 6,
+      "xl": 6
     },
     "password": {
       "type": "password",
-      "size": {
-        "xs": 12,
-        "sm": 12,
-        "md": 6,
-        "lg": 6,
-        "xl": 6
-      },
-      "label": "cfg_password"
+      "label": "cfg_password",
+      "xs": 12,
+      "sm": 6,
+      "md": 6,
+      "lg": 6,
+      "xl": 6
     },
+
     "intervalMin": {
       "type": "number",
-      "size": {
-        "xs": 12,
-        "sm": 12,
-        "md": 6,
-        "lg": 6,
-        "xl": 6
-      },
       "label": "cfg_intervalMin",
       "help": "cfg_intervalMin_help",
-      "min": 5
+      "min": 5,
+      "xs": 12,
+      "sm": 6,
+      "md": 6,
+      "lg": 6,
+      "xl": 6
     },
     "maxLessons": {
       "type": "number",
-      "size": {
-        "xs": 12,
-        "sm": 12,
-        "md": 6,
-        "lg": 6,
-        "xl": 6
-      },
       "label": "cfg_maxLessons",
       "help": "cfg_maxLessons_help",
-      "min": 6
+      "min": 6,
+      "xs": 12,
+      "sm": 6,
+      "md": 6,
+      "lg": 6,
+      "xl": 6
     },
+
     "enableWeek": {
       "type": "checkbox",
-      "size": {
-        "xs": 12,
-        "sm": 12,
-        "md": 12,
-        "lg": 12,
-        "xl": 12
-      },
-      "label": "cfg_enableWeek"
+      "label": "cfg_enableWeek",
+      "xs": 12,
+      "sm": 12,
+      "md": 12,
+      "lg": 12,
+      "xl": 12
     }
   }
 }
