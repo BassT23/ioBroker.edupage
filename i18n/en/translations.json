@@ -1,9 +1,13 @@
 {
-  "EduPage settings": "EduPage settings",
-  "Base URL": "Base URL",
-  "Username": "Username",
-  "Password": "Password",
-  "Refresh interval (minutes)": "Refresh interval (minutes)",
-  "Max lessons per day": "Max lessons per day",
-  "Week view": "Week view"
+  "cfg_header": "EduPage settings",
+  "cfg_hint": "Enter your EduPage base URL and credentials. The adapter will sync on the configured interval.",
+  "cfg_baseUrl": "Base URL",
+  "cfg_baseUrl_help": "Example: https://myschool.edupage.org",
+  "cfg_username": "Username",
+  "cfg_password": "Password",
+  "cfg_intervalMin": "Refresh interval (minutes)",
+  "cfg_intervalMin_help": "Minimum: 5 minutes",
+  "cfg_maxLessons": "Max lessons per day",
+  "cfg_maxLessons_help": "Minimum: 6",
+  "cfg_enableWeek": "Week view"
 }

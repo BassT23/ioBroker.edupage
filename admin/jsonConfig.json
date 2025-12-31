@@ -2,43 +2,59 @@
   "type": "panel",
   "i18n": true,
   "items": {
+    "_header": {
+      "type": "header",
+      "text": "cfg_header"
+    },
+    "_hint": {
+      "type": "staticText",
+      "text": "cfg_hint"
+    },
+
     "baseUrl": {
       "type": "text",
-      "label": "Base URL",
-      "help": "e.g. https://myschool.edupage.org",
+      "label": "cfg_baseUrl",
+      "help": "cfg_baseUrl_help",
       "placeholder": "https://myschool.edupage.org",
       "sm": 12,
       "md": 12
     },
+
     "username": {
       "type": "text",
-      "label": "Username",
+      "label": "cfg_username",
       "sm": 12,
       "md": 6
     },
+
     "password": {
       "type": "password",
-      "label": "Password",
+      "label": "cfg_password",
       "sm": 12,
       "md": 6
     },
+
     "intervalMin": {
       "type": "number",
-      "label": "Refresh interval (minutes)",
+      "label": "cfg_intervalMin",
+      "help": "cfg_intervalMin_help",
       "min": 5,
       "sm": 12,
       "md": 6
     },
+
     "maxLessons": {
       "type": "number",
-      "label": "Max lessons per day",
+      "label": "cfg_maxLessons",
+      "help": "cfg_maxLessons_help",
       "min": 6,
       "sm": 12,
       "md": 6
     },
+
     "enableWeek": {
       "type": "checkbox",
-      "label": "Week view",
+      "label": "cfg_enableWeek",
       "sm": 12,
       "md": 12
     }
