@@ -1,40 +1,56 @@
 {
-  "type": "panel",
   "i18n": true,
+  "type": "panel",
   "items": {
-    "_header": { "type": "header", "text": "cfg_header" },
-    "_hint":   { "type": "staticText", "text": "cfg_hint" },
+    "header": {
+      "type": "header",
+      "size": 12,
+      "text": "cfg_header"
+    },
+    "hint": {
+      "type": "text",
+      "size": 12,
+      "text": "cfg_hint"
+    },
 
     "baseUrl": {
       "type": "text",
+      "size": 12,
       "label": "cfg_baseUrl",
       "help": "cfg_baseUrl_help",
-      "placeholder": "cfg_baseUrl_ph",
-      "sm": 12,
-      "md": 12
+      "placeholder": "https://myschool.edupage.org"
     },
 
-    "username": { "type": "text", "label": "cfg_username", "sm": 12, "md": 6 },
-    "password": { "type": "password", "label": "cfg_password", "sm": 12, "md": 6 },
+    "username": {
+      "type": "text",
+      "size": 6,
+      "label": "cfg_username"
+    },
+    "password": {
+      "type": "password",
+      "size": 6,
+      "label": "cfg_password"
+    },
 
     "intervalMin": {
       "type": "number",
+      "size": 6,
       "label": "cfg_intervalMin",
       "help": "cfg_intervalMin_help",
-      "min": 5,
-      "sm": 12,
-      "md": 6
+      "min": 5
     },
-
     "maxLessons": {
       "type": "number",
+      "size": 6,
       "label": "cfg_maxLessons",
       "help": "cfg_maxLessons_help",
-      "min": 6,
-      "sm": 12,
-      "md": 6
+      "min": 6
     },
 
-    "enableWeek": { "type": "checkbox", "label": "cfg_enableWeek", "sm": 12, "md": 12 }
+    "enableWeek": {
+      "type": "checkbox",
+      "size": 12,
+      "label": "cfg_enableWeek"
+    }
   }
 }
