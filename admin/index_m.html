@@ -5,11 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>EduPage</title>
 
-  <link rel="stylesheet" type="text/css" href="../../lib/css/materialize.css" />
+  <link rel="stylesheet" type="text/css" href="../../lib/css/materialize.min.css" />
   <link rel="stylesheet" type="text/css" href="../../css/adapter.css" />
 
-  <script type="text/javascript" src="../../lib/js/jquery-3.2.1.min.js"></script>
-  <script type="text/javascript" src="../../lib/js/materialize.js"></script>
+  <script type="text/javascript" src="../../lib/js/jquery.min.js"></script>
+  <script type="text/javascript" src="../../lib/js/materialize.min.js"></script>
   <script type="text/javascript" src="../../js/adapter-settings.js"></script>
 
   <style>
@@ -75,15 +75,20 @@
   </div>
 
   <script type="text/javascript">
-    // must be global
-    var onChangeFn;
+    // Make absolutely sure Admin can see these globals
+    window.onChangeFn = null;
 
-    function load(settings, onChange) {
-      onChangeFn = onChange;
+    function markChanged() {
+      if (window.onChangeFn) window.onChangeFn(true);
+    }
+
+    // IMPORTANT: expose on window (Admin Savebar)
+    window.load = function (settings, onChange) {
+      window.onChangeFn = onChange;
 
       if (!settings) settings = {};
 
-      // sensible defaults ONLY if not set yet
+      // defaults only when missing
       if (settings.baseUrl === undefined) settings.baseUrl = '';
       if (settings.intervalMin === undefined) settings.intervalMin = 15;
       if (settings.maxLessons === undefined) settings.maxLessons = 12;
@@ -100,16 +105,23 @@
         }
       });
 
-      // change detection (save button)
-      $('.value').off('change input').on('change input', function () {
-        if (onChangeFn) onChangeFn(true);
-      });
+      // change detection -> enables save
+      $('.value')
+        .off('change input keyup paste')
+        .on('change input keyup paste', markChanged);
 
-      if (onChangeFn) onChangeFn(false);
-      if (window.M && M.updateTextFields) M.updateTextFields();
-    }
+      // checkbox sometimes does not fire input on some UIs
+      $('#enableWeek').off('click').on('click', markChanged);
 
-    function save(callback) {
+      if (window.onChangeFn) window.onChangeFn(false);
+
+      // update materialize labels (sometimes needs a tick)
+      setTimeout(function () {
+        if (window.M && M.updateTextFields) M.updateTextFields();
+      }, 0);
+    };
+
+    window.save = function (callback) {
       var obj = {};
 
       $('.value').each(function () {
@@ -127,7 +139,7 @@
       });
 
       callback(obj);
-    }
+    };
   </script>
 </body>
 </html>
