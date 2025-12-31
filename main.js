@@ -31,8 +31,11 @@ class Edupage extends utils.Adapter {
     this.setState('info.connection', false, true);
 
     const baseUrl = (this.config.baseUrl || '').trim().replace(/\/+$/, '');
-    if (!baseUrl) return this.log.error('Please set baseUrl (e.g. https://rs-kollnau.edupage.org)');
-    if (!this.config.username || !this.config.password) return this.log.error('Please set username/password');
+    if (!baseUrl) return this.log.error('Please set baseUrl (e.g. https://myschool.edupage.org)');
+    if (!this.config.username || !this.config.password) {
+      this.log.warn('No username/password set yet. Adapter stays idle until configured.');
+      return;
+    }
 
     this.maxLessons = Math.max(6, Number(this.config.maxLessons || 12));
     await this.ensureStates();
