@@ -2,37 +2,20 @@
   "type": "panel",
   "i18n": true,
   "items": {
-    "_header": {
-      "type": "header",
-      "text": "cfg_header"
-    },
-    "_hint": {
-      "type": "staticText",
-      "text": "cfg_hint"
-    },
+    "_header": { "type": "header", "text": "cfg_header" },
+    "_hint":   { "type": "staticText", "text": "cfg_hint" },
 
     "baseUrl": {
       "type": "text",
       "label": "cfg_baseUrl",
       "help": "cfg_baseUrl_help",
-      "placeholder": "https://myschool.edupage.org",
+      "placeholder": "cfg_baseUrl_ph",
       "sm": 12,
       "md": 12
     },
 
-    "username": {
-      "type": "text",
-      "label": "cfg_username",
-      "sm": 12,
-      "md": 6
-    },
-
-    "password": {
-      "type": "password",
-      "label": "cfg_password",
-      "sm": 12,
-      "md": 6
-    },
+    "username": { "type": "text", "label": "cfg_username", "sm": 12, "md": 6 },
+    "password": { "type": "password", "label": "cfg_password", "sm": 12, "md": 6 },
 
     "intervalMin": {
       "type": "number",
@@ -52,11 +35,6 @@
       "md": 6
     },
 
-    "enableWeek": {
-      "type": "checkbox",
-      "label": "cfg_enableWeek",
-      "sm": 12,
-      "md": 12
-    }
+    "enableWeek": { "type": "checkbox", "label": "cfg_enableWeek", "sm": 12, "md": 12 }
   }
 }
