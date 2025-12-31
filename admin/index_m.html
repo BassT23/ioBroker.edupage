@@ -1,130 +1,93 @@
 <!doctype html>
 <html>
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta charset="UTF-8">
   <title>EduPage</title>
 
+  <!-- ioBroker Admin injects CSS + JS automatically -->
+  <script type="text/javascript" src="../../adminWww/js/adapter-settings.js"></script>
+
   <style>
-    .adapter-container { padding: 16px; }
-    .logo { width: 48px; height: 48px; vertical-align: middle; }
-    .head { display:flex; gap:12px; align-items:center; margin-bottom: 12px; }
-    .head h5 { margin: 0; }
-    .hint { opacity: .75; font-size: 12px; margin-top: 6px; }
+    /* keep it minimal – admin handles dark/light */
+    .logo {
+      width: 64px;
+      height: 64px;
+      margin-right: 16px;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      margin-bottom: 24px;
+    }
+    .row {
+      max-width: 700px;
+    }
   </style>
 </head>
 
 <body>
   <div class="adapter-container">
-    <div class="head">
-      <img src="edupage.png" class="logo" alt="edupage" />
-      <div>
-        <h5 class="translate">EduPage settings</h5>
-        <div class="hint translate">Enter your EduPage credentials and base URL.</div>
-      </div>
+    <div class="header">
+      <img src="edupage.png" class="logo" />
+      <h5 class="translate">EduPage settings</h5>
     </div>
 
     <div class="row">
-      <div class="input-field col s12">
-        <input class="value" id="baseUrl" type="text" placeholder="https://myschool.edupage.org" />
-        <label for="baseUrl" class="translate">Base URL</label>
-      </div>
+      <label class="translate" for="baseUrl">Base URL</label>
+      <input class="value" id="baseUrl" type="text" />
 
-      <div class="input-field col s12 m6">
-        <input class="value" id="username" type="text" autocomplete="username" />
-        <label for="username" class="translate">Username</label>
-      </div>
+      <label class="translate" for="username">Username</label>
+      <input class="value" id="username" type="text" />
 
-      <div class="input-field col s12 m6">
-        <input class="value" id="password" type="password" autocomplete="current-password" />
-        <label for="password" class="translate">Password</label>
-      </div>
+      <label class="translate" for="password">Password</label>
+      <input class="value" id="password" type="password" />
 
-      <div class="input-field col s12 m6">
-        <input class="value" id="intervalMin" type="number" min="5" />
-        <label for="intervalMin" class="translate">Refresh interval (minutes)</label>
-      </div>
+      <label class="translate" for="intervalMin">Refresh interval (minutes)</label>
+      <input class="value" id="intervalMin" type="number" min="5" />
 
-      <div class="input-field col s12 m6">
-        <input class="value" id="maxLessons" type="number" min="6" />
-        <label for="maxLessons" class="translate">Max lessons per day</label>
-      </div>
+      <label class="translate" for="maxLessons">Max lessons per day</label>
+      <input class="value" id="maxLessons" type="number" min="6" />
 
-      <div class="col s12" style="margin-top:10px">
+      <p>
         <label>
           <input class="value" id="enableWeek" type="checkbox" />
           <span class="translate">Week view</span>
         </label>
-      </div>
+      </p>
     </div>
   </div>
 
   <script>
-    // Make sure Admin can call these
-    window.load = function (settings, onChange) {
+    function load(settings, onChange) {
       settings = settings || {};
 
-      // defaults
-      if (settings.baseUrl === undefined) settings.baseUrl = '';
-      if (settings.username === undefined) settings.username = '';
-      if (settings.password === undefined) settings.password = '';
-      if (settings.intervalMin === undefined) settings.intervalMin = 15;
-      if (settings.maxLessons === undefined) settings.maxLessons = 12;
-      if (settings.enableWeek === undefined) settings.enableWeek = false;
+      $('.value').each(function () {
+        const id = this.id;
+        if (this.type === 'checkbox') {
+          this.checked = !!settings[id];
+        } else {
+          this.value = settings[id] ?? '';
+        }
+      });
 
-      // Prefer jQuery if Admin injected it, fallback to plain DOM
-      if (window.$) {
-        $('.value').each(function () {
-          const $el = $(this);
-          const id = $el.attr('id');
-          if ($el.attr('type') === 'checkbox') $el.prop('checked', !!settings[id]);
-          else $el.val(settings[id] ?? '');
-        });
+      $('.value').on('change input', () => onChange(true));
+      onChange(false);
+    }
 
-        $('.value').off('change input keyup paste').on('change input keyup paste', () => onChange(true));
-        $('#enableWeek').off('click').on('click', () => onChange(true));
-
-        onChange(false);
-        setTimeout(() => {
-          if (window.M && M.updateTextFields) M.updateTextFields();
-        }, 0);
-      } else {
-        document.querySelectorAll('.value').forEach(el => {
-          const id = el.id;
-          if (el.type === 'checkbox') el.checked = !!settings[id];
-          else el.value = settings[id] ?? '';
-          el.addEventListener('change', () => onChange(true));
-          el.addEventListener('input', () => onChange(true));
-        });
-        onChange(false);
-      }
-
-      console.log('edupage config page loaded', typeof window.load, typeof window.save);
-    };
-
-    window.save = function (callback) {
+    function save(callback) {
       const obj = {};
-
-      if (window.$) {
-        $('.value').each(function () {
-          const $el = $(this);
-          const id = $el.attr('id');
-          if ($el.attr('type') === 'checkbox') obj[id] = $el.prop('checked');
-          else if ($el.attr('type') === 'number') {
-            const raw = String($el.val() || '').trim();
-            obj[id] = raw === '' ? 0 : parseInt(raw, 10);
-          } else obj[id] = $el.val();
-        });
-      } else {
-        document.querySelectorAll('.value').forEach(el => {
-          if (el.type === 'checkbox') obj[el.id] = el.checked;
-          else if (el.type === 'number') obj[el.id] = el.value === '' ? 0 : parseInt(el.value, 10);
-          else obj[el.id] = el.value;
-        });
-      }
-
+      $('.value').each(function () {
+        const id = this.id;
+        if (this.type === 'checkbox') {
+          obj[id] = this.checked;
+        } else if (this.type === 'number') {
+          obj[id] = parseInt(this.value, 10) || 0;
+        } else {
+          obj[id] = this.value;
+        }
+      });
       callback(obj);
-    };
+    }
   </script>
 </body>
 </html>

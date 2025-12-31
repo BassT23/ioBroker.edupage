@@ -30,7 +30,9 @@
     "dataSource": "push",
     "tier": 2,
     "admin": "admin/index_m.html",
-    "adminUI": { "config": "html" }
+    "adminUI": {
+      "config": "html"
+    }
   },
   "native": {
     "baseUrl": "",
