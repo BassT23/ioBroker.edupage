@@ -58,5 +58,5 @@ ioBroker js-controller and admin should be up to date
 0.0.1 - Initial working version with jsonConfig-based admin UI
 
 ## License
-[MIT License. See LICENSE.](https://github.com/BassT23/ioBroker.edupage/tree/main#)
+[MIT License. See LICENSE.](https://github.com/BassT23/ioBroker.edupage/tree/main?tab=MIT-1-ov-file#)
 
