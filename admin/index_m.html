@@ -1,80 +1,145 @@
 <!doctype html>
 <html>
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>EduPage</title>
 
-  <!-- CORRECT for Admin v6+ -->
-  <script src="adapter-settings.js"></script>
+  <!-- admin provides these (works for most admin installations) -->
+  <script src="../../lib/js/jquery.min.js"></script>
+
+  <!-- IMPORTANT: try to load adapter-settings from different known admin locations -->
+  <script>
+    function loadScript(src) {
+      return new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = src;
+        s.onload = resolve;
+        s.onerror = reject;
+        document.head.appendChild(s);
+      });
+    }
+
+    async function bootstrap() {
+      // Try multiple known locations (Admin v6/v7 differ)
+      const candidates = [
+        // classic admin paths
+        '../../js/adapter-settings.js',
+        '../../adminWww/js/adapter-settings.js',
+        '../../adminWww/js/adapter-settings.js?cache=' + Date.now(),
+        // some setups expose it directly
+        '../../adapter-settings.js',
+      ];
+
+      let ok = false;
+      for (const c of candidates) {
+        try {
+          await loadScript(c);
+          ok = true;
+          break;
+        } catch (e) {}
+      }
+
+      if (!ok) {
+        document.body.innerHTML =
+          '<div style="padding:16px;color:#fff;font-family:Arial">' +
+          '<h3>EduPage</h3>' +
+          '<p><b>ERROR:</b> adapter-settings.js not found.</p>' +
+          '<p>Please open DevTools → Network and check which of these exists:</p>' +
+          '<pre style="background:#222;padding:8px;border-radius:6px;white-space:pre-wrap;">' +
+          candidates.join('\n') +
+          '</pre>' +
+          '</div>';
+        return;
+      }
+
+      // when adapter-settings is loaded, it will call global load/save
+      // admin also injects translations and styling by itself
+      if (window.init) window.init(); // harmless if not present
+    }
+
+    bootstrap();
+  </script>
 
   <style>
-    .adapter-container {
-      max-width: 700px;
-    }
-    .header {
-      display: flex;
-      align-items: center;
-      margin-bottom: 20px;
-    }
-    .logo {
-      width: 64px;
-      height: 64px;
-      margin-right: 16px;
-    }
-    label {
-      display: block;
-      margin-top: 12px;
-    }
-    input[type="text"],
-    input[type="password"],
-    input[type="number"] {
+    body { background: transparent; }
+    .adapter-container { max-width: 760px; padding: 16px; color: #fff; font-family: Arial, sans-serif; }
+    .header { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
+    .logo { width: 56px; height: 56px; }
+    label { display: block; margin-top: 12px; opacity: .85; }
+    input[type="text"], input[type="password"], input[type="number"] {
       width: 100%;
+      padding: 8px 10px;
+      border-radius: 6px;
+      border: 1px solid rgba(255,255,255,.2);
+      background: rgba(255,255,255,.06);
+      color: #fff;
+      outline: none;
     }
+    input:focus { border-color: rgba(120,200,255,.9); }
+    .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    @media (max-width: 720px) { .row2 { grid-template-columns: 1fr; } }
+    .hint { margin-top: 10px; opacity: .6; font-size: 12px; }
   </style>
 </head>
 
 <body>
   <div class="adapter-container">
     <div class="header">
-      <img src="edupage.png" class="logo">
-      <h5 class="translate">EduPage settings</h5>
+      <img src="edupage.png" class="logo" alt="edupage" />
+      <div>
+        <h3 class="translate" style="margin:0;">EduPage settings</h3>
+        <div class="translate hint">Enter your EduPage credentials and base URL.</div>
+      </div>
     </div>
 
-    <label class="translate">Base URL</label>
-    <input class="value" id="baseUrl" type="text">
+    <label class="translate" for="baseUrl">Base URL</label>
+    <input class="value" id="baseUrl" type="text" placeholder="https://myschool.edupage.org" />
 
-    <label class="translate">Username</label>
-    <input class="value" id="username" type="text">
+    <div class="row2">
+      <div>
+        <label class="translate" for="username">Username</label>
+        <input class="value" id="username" type="text" />
+      </div>
+      <div>
+        <label class="translate" for="password">Password</label>
+        <input class="value" id="password" type="password" />
+      </div>
+    </div>
 
-    <label class="translate">Password</label>
-    <input class="value" id="password" type="password">
+    <div class="row2">
+      <div>
+        <label class="translate" for="intervalMin">Refresh interval (minutes)</label>
+        <input class="value" id="intervalMin" type="number" min="5" />
+      </div>
+      <div>
+        <label class="translate" for="maxLessons">Max lessons per day</label>
+        <input class="value" id="maxLessons" type="number" min="6" />
+      </div>
+    </div>
 
-    <label class="translate">Refresh interval (minutes)</label>
-    <input class="value" id="intervalMin" type="number" min="5">
-
-    <label class="translate">Max lessons per day</label>
-    <input class="value" id="maxLessons" type="number" min="6">
-
-    <p>
-      <label>
-        <input class="value" id="enableWeek" type="checkbox">
-        <span class="translate">Week view</span>
-      </label>
-    </p>
+    <label style="margin-top:14px;">
+      <input class="value" id="enableWeek" type="checkbox" />
+      <span class="translate">Week view</span>
+    </label>
   </div>
 
   <script>
     function load(settings, onChange) {
       settings = settings || {};
 
+      // defaults
+      if (settings.baseUrl === undefined) settings.baseUrl = '';
+      if (settings.intervalMin === undefined) settings.intervalMin = 15;
+      if (settings.maxLessons === undefined) settings.maxLessons = 12;
+      if (settings.enableWeek === undefined) settings.enableWeek = false;
+
       document.querySelectorAll('.value').forEach(el => {
-        if (el.type === 'checkbox') {
-          el.checked = !!settings[el.id];
-        } else {
-          el.value = settings[el.id] ?? '';
-        }
-        el.addEventListener('change', () => onChange(true));
+        if (el.type === 'checkbox') el.checked = !!settings[el.id];
+        else el.value = settings[el.id] ?? '';
+
         el.addEventListener('input', () => onChange(true));
+        el.addEventListener('change', () => onChange(true));
       });
 
       onChange(false);
@@ -83,13 +148,9 @@
     function save(callback) {
       const obj = {};
       document.querySelectorAll('.value').forEach(el => {
-        if (el.type === 'checkbox') {
-          obj[el.id] = el.checked;
-        } else if (el.type === 'number') {
-          obj[el.id] = parseInt(el.value, 10) || 0;
-        } else {
-          obj[el.id] = el.value;
-        }
+        if (el.type === 'checkbox') obj[el.id] = el.checked;
+        else if (el.type === 'number') obj[el.id] = parseInt(el.value, 10) || 0;
+        else obj[el.id] = el.value;
       });
       callback(obj);
     }
