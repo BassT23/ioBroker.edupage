@@ -1,0 +1,46 @@
+{
+  "type": "panel",
+  "i18n": true,
+  "items": {
+    "baseUrl": {
+      "type": "text",
+      "label": "Base URL",
+      "help": "e.g. https://myschool.edupage.org",
+      "placeholder": "https://myschool.edupage.org",
+      "sm": 12,
+      "md": 12
+    },
+    "username": {
+      "type": "text",
+      "label": "Username",
+      "sm": 12,
+      "md": 6
+    },
+    "password": {
+      "type": "password",
+      "label": "Password",
+      "sm": 12,
+      "md": 6
+    },
+    "intervalMin": {
+      "type": "number",
+      "label": "Refresh interval (minutes)",
+      "min": 5,
+      "sm": 12,
+      "md": 6
+    },
+    "maxLessons": {
+      "type": "number",
+      "label": "Max lessons per day",
+      "min": 6,
+      "sm": 12,
+      "md": 6
+    },
+    "enableWeek": {
+      "type": "checkbox",
+      "label": "Week view",
+      "sm": 12,
+      "md": 12
+    }
+  }
+}
