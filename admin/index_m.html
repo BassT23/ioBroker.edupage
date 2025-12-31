@@ -5,15 +5,71 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>EduPage</title>
 
-  <!-- ioBroker Admin assets (WEB PATH!) -->
-  <link rel="stylesheet" type="text/css" href="../../adapter/admin/lib/css/materialize.css" />
-  <link rel="stylesheet" type="text/css" href="../../adapter/admin/css/adapter.css" />
+  <style>
+    /* minimal fallback styling while we load libs */
+    .adapter-container { padding: 16px; }
+    .logo { width: 48px; height: 48px; }
+  </style>
 
-  <script type="text/javascript" src="../../adapter/admin/lib/js/jquery-3.2.1.min.js"></script>
-  <script type="text/javascript" src="../../adapter/admin/lib/js/materialize.js"></script>
-  <script type="text/javascript" src="../../adapter/admin/js/adapter-settings.js"></script>
+  <script>
+    // Try admin asset roots (some setups expose as /adapter/iobroker.admin/, others /adapter/admin/)
+    const roots = [
+      '/adapter/iobroker.admin/adminWww',  // common in newer setups
+      '/adapter/iobroker.admin',           // sometimes files are directly under it
+      '/adapter/admin'                     // older setups
+    ];
+
+    function addCss(href) {
+      return new Promise((resolve, reject) => {
+        const l = document.createElement('link');
+        l.rel = 'stylesheet';
+        l.href = href;
+        l.onload = resolve;
+        l.onerror = reject;
+        document.head.appendChild(l);
+      });
+    }
+
+    function addJs(src) {
+      return new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = src;
+        s.onload = resolve;
+        s.onerror = reject;
+        document.head.appendChild(s);
+      });
+    }
+
+    async function loadFromRoot(root) {
+      // Try materialize + adapter css
+      await addCss(root + '/lib/css/materialize.css');
+      await addCss(root + '/css/adapter.css');
+
+      // Try jquery + materialize + adapter-settings
+      await addJs(root + '/lib/js/jquery-3.2.1.min.js');
+      await addJs(root + '/lib/js/materialize.js');
+      await addJs(root + '/js/adapter-settings.js');
+    }
+
+    (async () => {
+      let ok = false;
+      for (const r of roots) {
+        try {
+          await loadFromRoot(r);
+          ok = true;
+          break;
+        } catch (e) {
+          // try next root
+        }
+      }
+      if (!ok) {
+        console.error('Could not load ioBroker admin assets from any known root', roots);
+      }
+    })();
+  </script>
 
   <style>
+    /* dark-mode readability (applied once adapter.css/materialize loaded too) */
     .adapter-container, .adapter-container * { color: rgba(255,255,255,0.88); }
     .input-field input { color: rgba(255,255,255,0.9) !important; }
     .input-field label { color: rgba(255,255,255,0.65) !important; }
@@ -74,7 +130,8 @@
     </div>
   </div>
 
-  <script type="text/javascript">
+  <script>
+    // These MUST exist for Savebar. They will be called by adapter-settings.js once loaded.
     window.onChangeFn = null;
 
     function markChanged() {
@@ -89,21 +146,23 @@
       if (settings.maxLessons === undefined) settings.maxLessons = 12;
       if (settings.enableWeek === undefined) settings.enableWeek = false;
 
-      $('.value').each(function () {
-        const $el = $(this);
-        const id = $el.attr('id');
-        if ($el.attr('type') === 'checkbox') {
-          $el.prop('checked', !!settings[id]);
-        } else {
-          $el.val(settings[id] ?? '');
-        }
-      });
+      if (window.$) {
+        $('.value').each(function () {
+          const $el = $(this);
+          const id = $el.attr('id');
+          if ($el.attr('type') === 'checkbox') {
+            $el.prop('checked', !!settings[id]);
+          } else {
+            $el.val(settings[id] ?? '');
+          }
+        });
 
-      $('.value').off('change input keyup paste').on('change input keyup paste', markChanged);
-      $('#enableWeek').off('click').on('click', markChanged);
+        $('.value').off('change input keyup paste').on('change input keyup paste', markChanged);
+        $('#enableWeek').off('click').on('click', markChanged);
+      }
 
       if (window.onChangeFn) window.onChangeFn(false);
-      setTimeout(() => M.updateTextFields(), 0);
+      setTimeout(() => { if (window.M && M.updateTextFields) M.updateTextFields(); }, 0);
     };
 
     window.save = function (callback) {
