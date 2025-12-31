@@ -4,20 +4,21 @@
     "version": "0.0.1",
     "title": "EduPage",
     "titleLang": {
-      "en": "EduPage"
+      "en": "EduPage",
+      "de": "EduPage"
     },
     "desc": {
-      "en": "Fetch timetable and substitutions from EduPage"
+      "en": "Fetch timetable and substitutions from EduPage",
+      "de": "Stundenplan und Vertretungen aus EduPage abrufen"
     },
     "authors": [
       "BassT23"
     ],
-    "license": "MIT",
     "platform": "Javascript/Node.js",
     "mode": "daemon",
     "icon": "edupage.png",
     "enabled": true,
-    "extIcon": "",
+    "extIcon": "https://raw.githubusercontent.com/BassT23/ioBroker.edupage/main/admin/edupage.png",
     "readme": "",
     "loglevel": "info",
     "keywords": [
@@ -25,14 +26,24 @@
       "timetable",
       "edupage"
     ],
-    "type": "schedule",
+    "type": "date-and-time",
     "connectionType": "cloud",
-    "dataSource": "push",
+    "dataSource": "poll",
     "tier": 2,
-    "admin": "admin/index_m.html",
     "adminUI": {
       "config": "json"
-    }
+    },
+    "licenseInformation": {
+      "type": "MIT",
+      "url": "https://opensource.org/licenses/MIT"
+    },
+    "news": {
+      "0.0.1": {
+        "en": "Initial release (UI + empty states).",
+        "de": "Erste Version (UI + leere States)."
+      }
+    },
+    "dependencies": []
   },
   "native": {
     "baseUrl": "",
@@ -43,5 +54,21 @@
     "enableWeek": false
   },
   "objects": [],
-  "instanceObjects": []
+  "instanceObjects": [],
+  "protectedNative": [
+    "password"
+  ],
+  "encryptedNative": [
+    "password"
+  ],
+  "dependencies": [
+    {
+      "js-controller": ">=5.0.19"
+    }
+  ],
+  "globalDependencies": [
+    {
+      "admin": ">=6.17.14"
+    }
+  ]
 }
