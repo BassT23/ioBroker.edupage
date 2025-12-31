@@ -5,16 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>EduPage</title>
 
-  <!-- Admin assets (your system: iobroker.admin/adminWww) -->
-  <link rel="stylesheet" type="text/css" href="../../adapter/adminWww/lib/css/materialize.css" />
-  <link rel="stylesheet" type="text/css" href="../../adapter/adminWww/css/adapter.css" />
+  <!-- ioBroker Admin assets (WEB PATH!) -->
+  <link rel="stylesheet" type="text/css" href="../../adapter/admin/lib/css/materialize.css" />
+  <link rel="stylesheet" type="text/css" href="../../adapter/admin/css/adapter.css" />
 
-  <script type="text/javascript" src="../../adapter/adminWww/lib/js/jquery-3.2.1.min.js"></script>
-  <script type="text/javascript" src="../../adapter/adminWww/lib/js/materialize.js"></script>
-  <script type="text/javascript" src="../../adapter/adminWww/js/adapter-settings.js"></script>
+  <script type="text/javascript" src="../../adapter/admin/lib/js/jquery-3.2.1.min.js"></script>
+  <script type="text/javascript" src="../../adapter/admin/lib/js/materialize.js"></script>
+  <script type="text/javascript" src="../../adapter/admin/js/adapter-settings.js"></script>
 
   <style>
-    /* dark-mode readability */
     .adapter-container, .adapter-container * { color: rgba(255,255,255,0.88); }
     .input-field input { color: rgba(255,255,255,0.9) !important; }
     .input-field label { color: rgba(255,255,255,0.65) !important; }
@@ -40,17 +39,17 @@
 
     <div class="row">
       <div class="input-field col s12">
-        <input class="value" id="baseUrl" type="text" placeholder="https://myschool.edupage.org" />
+        <input class="value" id="baseUrl" type="text" />
         <label for="baseUrl" class="translate">Base URL</label>
       </div>
 
       <div class="input-field col s12 m6">
-        <input class="value" id="username" type="text" autocomplete="username" />
+        <input class="value" id="username" type="text" />
         <label for="username" class="translate">Username</label>
       </div>
 
       <div class="input-field col s12 m6">
-        <input class="value" id="password" type="password" autocomplete="current-password" />
+        <input class="value" id="password" type="password" />
         <label for="password" class="translate">Password</label>
       </div>
 
@@ -76,7 +75,6 @@
   </div>
 
   <script type="text/javascript">
-    // expose explicitly so Admin Savebar works reliably
     window.onChangeFn = null;
 
     function markChanged() {
@@ -87,20 +85,17 @@
       window.onChangeFn = onChange;
       if (!settings) settings = {};
 
-      // defaults only when missing
-      if (settings.baseUrl === undefined) settings.baseUrl = '';
       if (settings.intervalMin === undefined) settings.intervalMin = 15;
       if (settings.maxLessons === undefined) settings.maxLessons = 12;
       if (settings.enableWeek === undefined) settings.enableWeek = false;
 
       $('.value').each(function () {
-        var $el = $(this);
-        var id = $el.attr('id');
-
+        const $el = $(this);
+        const id = $el.attr('id');
         if ($el.attr('type') === 'checkbox') {
           $el.prop('checked', !!settings[id]);
         } else {
-          $el.val(settings[id] !== undefined ? settings[id] : '');
+          $el.val(settings[id] ?? '');
         }
       });
 
@@ -108,28 +103,23 @@
       $('#enableWeek').off('click').on('click', markChanged);
 
       if (window.onChangeFn) window.onChangeFn(false);
-      setTimeout(function () {
-        if (window.M && M.updateTextFields) M.updateTextFields();
-      }, 0);
+      setTimeout(() => M.updateTextFields(), 0);
     };
 
     window.save = function (callback) {
-      var obj = {};
-
+      const obj = {};
       $('.value').each(function () {
-        var $el = $(this);
-        var id = $el.attr('id');
-
+        const $el = $(this);
+        const id = $el.attr('id');
         if ($el.attr('type') === 'checkbox') {
           obj[id] = $el.prop('checked');
         } else if ($el.attr('type') === 'number') {
-          var raw = String($el.val() || '').trim();
+          const raw = String($el.val() || '').trim();
           obj[id] = raw === '' ? 0 : parseInt(raw, 10);
         } else {
           obj[id] = $el.val();
         }
       });
-
       callback(obj);
     };
   </script>
