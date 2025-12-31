@@ -4,7 +4,7 @@
   "items": {
     "header": {
       "type": "header",
-      "size": 12,
+      "size": 3,
       "text": "cfg_header"
     },
     "hint": {
