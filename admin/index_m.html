@@ -1,96 +1,40 @@
-<!doctype html>
-<html>
-<head>
-  <meta charset="UTF-8" />
-  <title>EduPage</title>
-  <style>
-    .adapter-container {
-      padding: 16px;
-    }
-    .logo {
-      width: 48px;
-      height: 48px;
-    }
-    .row {
-      margin-bottom: 12px;
-    }
-  </style>
-</head>
+<script>
+  window.load = function (settings, onChange) {
+    if (!settings) settings = {};
 
-<body>
-  <div class="adapter-container">
-    <div class="row">
-      <img src="edupage.png" class="logo" alt="edupage" />
-      <h5 class="translate">EduPage settings</h5>
-    </div>
+    // defaults
+    if (settings.intervalMin === undefined) settings.intervalMin = 15;
+    if (settings.maxLessons === undefined) settings.maxLessons = 12;
+    if (settings.enableWeek === undefined) settings.enableWeek = false;
 
-    <div class="row">
-      <label class="translate">Base URL</label><br />
-      <input class="value" id="baseUrl" type="text" />
-    </div>
+    document.querySelectorAll('.value').forEach(el => {
+      const id = el.id;
 
-    <div class="row">
-      <label class="translate">Username</label><br />
-      <input class="value" id="username" type="text" />
-    </div>
+      if (el.type === 'checkbox') {
+        el.checked = !!settings[id];
+      } else {
+        el.value = (settings[id] ?? '');
+      }
 
-    <div class="row">
-      <label class="translate">Password</label><br />
-      <input class="value" id="password" type="password" />
-    </div>
+      el.addEventListener('change', () => onChange(true));
+      el.addEventListener('input', () => onChange(true));
+    });
 
-    <div class="row">
-      <label class="translate">Refresh interval (minutes)</label><br />
-      <input class="value" id="intervalMin" type="number" min="5" />
-    </div>
+    onChange(false);
+  };
 
-    <div class="row">
-      <label class="translate">Max lessons per day</label><br />
-      <input class="value" id="maxLessons" type="number" min="6" />
-    </div>
-
-    <div class="row">
-      <label>
-        <input class="value" id="enableWeek" type="checkbox" />
-        <span class="translate">Week view</span>
-      </label>
-    </div>
-  </div>
-
-  <script>
-    // REQUIRED by ioBroker Admin
-
-    function load(settings, onChange) {
-      if (!settings) settings = {};
-
-      document.querySelectorAll('.value').forEach(el => {
-        const id = el.id;
-        if (el.type === 'checkbox') {
-          el.checked = !!settings[id];
-        } else {
-          el.value = settings[id] ?? '';
-        }
-
-        el.addEventListener('change', () => onChange(true));
-        el.addEventListener('input', () => onChange(true));
-      });
-
-      onChange(false);
-    }
-
-    function save(callback) {
-      const obj = {};
-      document.querySelectorAll('.value').forEach(el => {
-        if (el.type === 'checkbox') {
-          obj[el.id] = el.checked;
-        } else if (el.type === 'number') {
-          obj[el.id] = el.value === '' ? 0 : parseInt(el.value, 10);
-        } else {
-          obj[el.id] = el.value;
-        }
-      });
-      callback(obj);
-    }
-  </script>
-</body>
-</html>
+  window.save = function (callback) {
+    const obj = {};
+    document.querySelectorAll('.value').forEach(el => {
+      if (el.type === 'checkbox') {
+        obj[el.id] = el.checked;
+      } else if (el.type === 'number') {
+        obj[el.id] = el.value === '' ? 0 : parseInt(el.value, 10);
+      } else {
+        obj[el.id] = el.value;
+      }
+    });
+    callback(obj);
+  };
+  console.log('edupage config page loaded', typeof window.load, typeof window.save);
+</script>
