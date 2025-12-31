@@ -2,7 +2,6 @@
   "common": {
     "name": "edupage",
     "version": "0.0.1",
-    "title": "EduPage",
     "titleLang": {
       "en": "EduPage",
       "de": "EduPage"
@@ -11,40 +10,47 @@
       "en": "Fetch timetable and substitutions from EduPage",
       "de": "Stundenplan und Vertretungen aus EduPage abrufen"
     },
-    "authors": [
-      "BassT23"
-    ],
+    "authors": ["BassT23"],
+    "licenseInformation": {
+      "type": "free",
+      "license": "MIT"
+    },
     "platform": "Javascript/Node.js",
     "mode": "daemon",
     "icon": "edupage.png",
     "enabled": true,
     "extIcon": "https://raw.githubusercontent.com/BassT23/ioBroker.edupage/main/admin/edupage.png",
-    "readme": "",
+    "readme": "https://github.com/BassT23/ioBroker.edupage/blob/main/README.md",
     "loglevel": "info",
-    "keywords": [
-      "schedule",
-      "timetable",
-      "edupage"
-    ],
-    "type": "date-and-time",
+    "keywords": ["schedule", "timetable", "edupage"],
+    "type": "misc-data",
     "connectionType": "cloud",
-    "dataSource": "poll",
+    "dataSource": "push",
     "tier": 2,
     "adminUI": {
       "config": "json"
     },
-    "licenseInformation": {
-      "type": "MIT",
-      "url": "https://opensource.org/licenses/MIT"
-    },
+    "compact": true,
     "news": {
       "0.0.1": {
-        "en": "Initial release (UI + empty states).",
-        "de": "Erste Version (UI + leere States)."
+        "en": "Initial working version with jsonConfig-based admin UI",
+        "de": "Erste funktionierende Version mit jsonConfig Admin-UI"
       }
     },
-    "dependencies": []
+    "dependencies": [
+      {
+        "js-controller": ">=5.0.19"
+      }
+    ],
+    "globalDependencies": [
+      {
+        "admin": ">=6.17.14"
+      }
+    ],
+    "protectedNative": ["password"],
+    "encryptedNative": ["password"]
   },
+
   "native": {
     "baseUrl": "",
     "username": "",
@@ -53,22 +59,7 @@
     "maxLessons": 12,
     "enableWeek": false
   },
+
   "objects": [],
-  "instanceObjects": [],
-  "protectedNative": [
-    "password"
-  ],
-  "encryptedNative": [
-    "password"
-  ],
-  "dependencies": [
-    {
-      "js-controller": ">=5.0.19"
-    }
-  ],
-  "globalDependencies": [
-    {
-      "admin": ">=6.17.14"
-    }
-  ]
+  "instanceObjects": []
 }
