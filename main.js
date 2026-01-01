@@ -173,14 +173,23 @@ class Edupage extends utils.Adapter {
       await this.setStateAsync('meta.lastSync', Date.now(), true);
 
       // Optional: mark changedSinceLastSync etc later
-    } catch (e) {
-      await this.setStateAsync('meta.lastError', String(e?.message || e), true);
-      this.setState('info.connection', false, true);
-      throw e;
-    } finally {
-      this._lastSyncRunning = false;
+      } catch (e) {
+        const status = e?.response?.status;
+        const method = e?.config?.method?.toUpperCase?.();
+        const url = e?.config?.url;
+        const base = e?.config?.baseURL;
+
+        if (status) {
+          this.log.error(`HTTP ${status} on ${method || ''} ${base || ''}${url || ''}`.trim());
+        } else {
+          this.log.error(`Error: ${String(e?.message || e)}`);
+        }
+
+        await this.setStateAsync('meta.lastError', String(e?.message || e), true);
+        this.setState('info.connection', false, true);
+        throw e;
+      }
     }
-  }
 
   makeAbsoluteCaptchaUrl(captchaSrc) {
     if (!captchaSrc) return '';
