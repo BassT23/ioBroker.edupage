@@ -30,6 +30,18 @@
       "xl": 12
     },
 
+    "studentId": {
+      "type": "text",
+      "label": "cfg_studentId",
+      "help": "cfg_studentId_help",
+      "placeholder": "-2528",
+      "xs": 12,
+      "sm": 6,
+      "md": 6,
+      "lg": 6,
+      "xl": 6
+    },
+
     "username": {
       "type": "text",
       "label": "cfg_username",

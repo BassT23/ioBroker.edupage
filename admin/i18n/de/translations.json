@@ -10,5 +10,7 @@
   "cfg_intervalMin_help": "Minimum: 5 Minuten",
   "cfg_maxLessons": "Max. Stunden pro Tag",
   "cfg_maxLessons_help": "Minimum: 6",
-  "cfg_enableWeek": "Wochenansicht"
+  "cfg_enableWeek": "Wochenansicht",
+  "cfg_studentId": "Schüler-ID",
+  "cfg_studentId_help": "Interne EduPage Schüler-ID (bei Eltern-Accounts notwendig). Im Browser den Stundenplan öffnen → Entwickler-Tools → Network → currentttGetData → args[1].id"
 }

@@ -10,5 +10,7 @@
   "cfg_intervalMin_help": "Minimum: 5 minutes",
   "cfg_maxLessons": "Max lessons per day",
   "cfg_maxLessons_help": "Minimum: 6",
-  "cfg_enableWeek": "Week view"
+  "cfg_enableWeek": "Week view",
+  "cfg_studentId": "Student ID",
+  "cfg_studentId_help": "EduPage internal student ID (required for parent accounts). Open timetable in browser → DevTools → Network → currentttGetData → args[1].id"
 }
