@@ -248,7 +248,7 @@ class Edupage extends utils.Adapter {
       const model = this.emptyModel();
 
       // Option A: Woche oder nur Today+Tomorrow (du hast Checkbox "Wochenansicht")
-      const weekView = !!this.config.weekView;
+      const weekView = !!this.config.enableWeek;
 
       let dateFrom = model.today.date;
       let dateTo = model.tomorrow.date;

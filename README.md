@@ -1,65 +1,94 @@
+
 # ioBroker EduPage Adapter (edupage)
 
-Fetch timetable and substitutions from EduPage.
+Fetch timetable data from EduPage directly into ioBroker.
 
-> **Status:** Early development (0.0.x). The adapter may change without notice.
+> **Status:** Early development (0.0.x) – already functional and tested.
+
+---
 
 ## Features
 
-- Config via Admin UI (jsonConfig)
-- Periodic sync (interval)
-- Stores data in ioBroker states (today/tomorrow/next)
+- Native EduPage login (same flow as browser)
+- Admin UI configuration (jsonConfig)
+- Automatic school detection from base URL
+- Day or full week timetable view
+- Periodic sync with safe backoff handling
+- Stores data cleanly in ioBroker states
+- Detects and reports EduPage captcha challenges
+
+---
 
 ## Installation
 
 ### From GitHub (local dev)
 
-```bash
+```
 cd /opt/iobroker
 iobroker add https://github.com/BassT23/iobroker.edupage.git
 ```
 
-From npm (planned)
-Not published yet.
+### npm release planned (not yet published)
 
-Configuration
-Open ioBroker Admin → Instances → edupage → settings.
+## Configuration
+Open ioBroker Admin → Instances → edupage → settings
 
-Base URL: e.g. https://myschool.edupage.org
+## Required:
+
+Base URL
+https://myschool.edupage.org
 
 Username / Password
+
+### Optional:
 
 Refresh interval (minutes)
 
 Max lessons per day
 
-Optional: week view / additional features (future)
+Week view (otherwise today + tomorrow only)
 
-States (overview)
-The adapter creates states under:
+### Captcha handling (important)
+EduPage may require a captcha after suspicious activity.
+
+In this case the adapter:
+
+stops syncing automatically
+
+logs a clear warning
+
+prints the captcha URL into the log
+
+Solve the captcha once in the browser and restart the adapter.
+
+## States
+Created under:
 
 edupage.0.meta.*
-
 edupage.0.today.*
-
 edupage.0.tomorrow.*
-
 edupage.0.next.*
+(State structure may evolve during 0.0.x.)
 
-(Exact structure may evolve during 0.0.x.)
-
-Development
 Requirements
-Node.js >= 20 recommended
+Node.js >= 20
 
-ioBroker js-controller and admin should be up to date
+Current ioBroker js-controller & admin
 
 ## Changelog
 ### 0.0.1
-- Initial release (alpha)
+Initial alpha release
+
 ### 0.0.2
-- login setup / testing
+Fully working login flow
+
+Timetable fetch via official EduPage endpoints
+
+Week view support
+
+Captcha detection & safe backoff
+
+Stability and config fixes
 
 ## License
 [MIT License. See LICENSE.](https://github.com/BassT23/ioBroker.edupage/tree/main?tab=MIT-1-ov-file#)
-

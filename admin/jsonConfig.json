@@ -9,7 +9,7 @@
     },
 
     "hint": {
-      "type": "text",
+      "type": "staticText",
       "text": "cfg_hint",
       "xs": 12,
       "sm": 12,
