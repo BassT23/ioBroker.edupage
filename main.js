@@ -1,7 +1,6 @@
 'use strict';
 
 const utils = require('@iobroker/adapter-core');
-
 const { EdupageHttp } = require('./lib/edupageHttp');
 const { EdupageClient } = require('./lib/edupageClient');
 
@@ -15,13 +14,8 @@ class Edupage extends utils.Adapter {
     this.timer = null;
     this.maxLessons = 12;
 
-    // _gsh cache
-    this._gsh = null;
-    this._gshFetchedAt = 0;
-
-    // captcha / backoff
-    this.blockedUntil = 0;
-    this.blockReason = '';
+    // Captcha / Backoff
+    this.pausedUntil = 0; // timestamp ms
   }
 
   async onReady() {
@@ -29,7 +23,6 @@ class Edupage extends utils.Adapter {
 
     const baseUrl = (this.config.baseUrl || '').trim().replace(/\/+$/, '');
     if (!baseUrl) {
-      // Beispiel-Host IMMER neutral
       this.log.error('Please set baseUrl (e.g. https://myschool.edupage.org)');
       return;
     }
@@ -39,34 +32,42 @@ class Edupage extends utils.Adapter {
       return;
     }
 
-    // optional: parent accounts often need a student id for the students-table
-    // keep it optional, but we will error if missing when we actually fetch timetable
-    const intervalMin = Math.max(5, Number(this.config.intervalMin || 15));
     this.maxLessons = Math.max(6, Number(this.config.maxLessons || 12));
 
     await this.ensureStates();
 
-    // http+client einmalig erzeugen, Cookies bleiben erhalten
+    // HTTP + Client (Cookies bleiben erhalten)
     this.eduHttp = new EdupageHttp({ baseUrl, log: this.log });
     this.eduClient = new EdupageClient({ http: this.eduHttp, log: this.log });
 
+    // 1x sofort
     await this.syncOnce().catch(e => this.log.warn(`Initial sync failed: ${e?.message || e}`));
 
+    // Intervall
+    const intervalMin = Math.max(5, Number(this.config.intervalMin || 15));
     this.timer = setInterval(() => {
       this.syncOnce().catch(e => this.log.warn(`Sync failed: ${e?.message || e}`));
     }, intervalMin * 60 * 1000);
   }
 
-  // ===================== states =====================
+  // ---------------- states ----------------
 
   async ensureStates() {
     const defs = [
       ['meta.lastSync', 'number', 'Last sync timestamp (ms)'],
       ['meta.lastError', 'string', 'Last error message'],
-      ['meta.captchaUrl', 'string', 'Captcha URL (open in browser)'],
-      ['meta.blockedUntil', 'number', 'Blocked until timestamp (ms)'],
+      ['meta.captchaUrl', 'string', 'Captcha URL if login is blocked'],
+      ['meta.pausedUntil', 'number', 'Paused until timestamp (ms)'],
+
       ['today.date', 'string', 'Today date'],
       ['tomorrow.date', 'string', 'Tomorrow date'],
+
+      // Ferien extra
+      ['today.holiday', 'boolean', 'Today is holiday/vacation'],
+      ['today.holidayName', 'string', 'Holiday/vacation name today'],
+      ['tomorrow.holiday', 'boolean', 'Tomorrow is holiday/vacation'],
+      ['tomorrow.holidayName', 'string', 'Holiday/vacation name tomorrow'],
+
       ['next.when', 'string', 'today|tomorrow'],
       ['next.subject', 'string', 'Next subject'],
       ['next.room', 'string', 'Next room'],
@@ -115,13 +116,13 @@ class Edupage extends utils.Adapter {
     }
   }
 
-  // ===================== sync =====================
+  // ---------------- main sync ----------------
 
   async syncOnce() {
-    // backoff/captcha block
-    if (this.blockedUntil && Date.now() < this.blockedUntil) {
-      const mins = Math.ceil((this.blockedUntil - Date.now()) / 60000);
-      this.log.warn(`[Backoff] ${this.blockReason || 'Blocked'}. Next try in ~${mins} min.`);
+    // Pause aktiv?
+    const now = Date.now();
+    if (this.pausedUntil && now < this.pausedUntil) {
+      // ruhig bleiben, kein Spam
       return;
     }
 
@@ -135,12 +136,12 @@ class Edupage extends utils.Adapter {
       // 1) token
       const tokRes = await this.eduClient.getToken({
         username: this.config.username,
-        edupage: this.eduClient.school,
+        edupage: this.eduClient.school, // subdomain
       });
+
       if (!tokRes?.token) throw new Error(tokRes?.err?.error_text || 'No token');
 
       // 2) login
-      const guFallback = `/dashboard/eb.php?eqa=${encodeURIComponent(Buffer.from('mode=timetable').toString('base64'))}`;
       const loginRes = await this.eduClient.login({
         username: this.config.username,
         password: this.config.password,
@@ -148,20 +149,21 @@ class Edupage extends utils.Adapter {
         edupage: this.eduClient.school,
         ctxt: '',
         tu: md?.tu ?? null,
-        gu: md?.gu ?? guFallback,
+        gu: md?.gu ?? this.eduClient.getTimetableRefererPath(),
         au: md?.au ?? null,
       });
 
-      // Captcha detection (common patterns)
-      // - loginRes.needCaptcha == '1' with captchaSrc
-      // - loginRes.err.error_text contains captcha message
-      if (loginRes?.needCaptcha == '1' || (loginRes?.err?.error_text || '').toLowerCase().includes('captcha')) {
-        const captchaUrl = this._makeAbsoluteCaptchaUrl(loginRes?.captchaSrc);
-        await this._handleCaptchaBlock(
-          captchaUrl,
-          loginRes?.err?.error_text ||
-            'Captcha required by EduPage (suspicious activity).'
-        );
+      // Captcha / suspicious activity?
+      // EduPage liefert oft res.needCaptcha / captchaSrc / oder error_text
+      const captchaSrc = loginRes?.captchaSrc || loginRes?.err?.captchaSrc;
+      const needCaptcha = loginRes?.needCaptcha === '1' || /captcha|verdächt/i.test(String(loginRes?.err?.error_text || ''));
+
+      if (needCaptcha || captchaSrc) {
+        const url = captchaSrc
+          ? (captchaSrc.startsWith('http') ? captchaSrc : (this.eduHttp.baseUrl.replace(/\/+$/, '') + captchaSrc))
+          : '';
+
+        await this.handleCaptchaBlock(url, loginRes?.err?.error_text || 'Captcha required');
         return;
       }
 
@@ -169,252 +171,149 @@ class Edupage extends utils.Adapter {
         throw new Error(loginRes?.err?.error_text || 'Login failed');
       }
 
-      // 3) get _gsh via getTTViewerData (NOT via HTML parsing)
-      const gsh = await this.getOrFetchGsh(true);
+      // 3) timetable warm-up (wichtig gegen "404")
+      await this.eduClient.warmUpTimetable();
 
-      // 4) choose date range (Option A = enableWeek)
+      // 4) _gsh
+      const gsh = await this.eduClient.getGsh();
+
+      // 5) args bauen (Option A: Wochenansicht via enableWeek)
+      const model = this.emptyModel();
       const weekView = !!this.config.enableWeek;
-      const { dateFrom, dateTo, year } = this._computeDateRange(weekView);
 
-      // 5) table/id (for parents usually students + studentId)
-      const table = (this.config.table || 'students').trim();
-      const id = (this.config.studentId || '').trim();
+      let dateFrom = model.today.date;
+      let dateTo = model.tomorrow.date;
 
-      if (!id) {
-        throw new Error(
-          'Missing studentId in adapter config (needed for table "students"). ' +
-            'Tip: open timetable in browser → Network → currentttGetData → payload → args[1].id'
-        );
+      if (weekView) {
+        // Mo..So der aktuellen Woche
+        const d = new Date();
+        const day = (d.getDay() + 6) % 7; // Mo=0
+        const monday = new Date(d);
+        monday.setDate(d.getDate() - day);
+        const sunday = new Date(monday);
+        sunday.setDate(monday.getDate() + 6);
+
+        dateFrom = monday.toISOString().slice(0, 10);
+        dateTo = sunday.toISOString().slice(0, 10);
       }
 
-      // 6) currentttGetData (retry once on 404 by refreshing _gsh)
-      let tt;
-      try {
-        tt = await this.eduClient.currentttGetData({
-          args: [
-            null,
-            {
-              year,
-              datefrom: dateFrom,
-              dateto: dateTo,
-              table,
-              id,
-              showColors: true,
-              showIgroupsInClasses: false,
-              showOrig: true,
-              log_module: 'CurrentTTView',
-            },
-          ],
-          gsh,
-        });
-      } catch (e) {
-        // If 404, gsh may be stale -> refresh once
-        const msg = String(e?.message || e);
-        if (msg.includes('404')) {
-          this.log.warn('Timetable request got 404, refreshing _gsh once and retrying...');
-          const gsh2 = await this.getOrFetchGsh(false); // force refresh
-          tt = await this.eduClient.currentttGetData({
-            args: [
-              null,
-              {
-                year,
-                datefrom: dateFrom,
-                dateto: dateTo,
-                table,
-                id,
-                showColors: true,
-                showIgroupsInClasses: false,
-                showOrig: true,
-                log_module: 'CurrentTTView',
-              },
-            ],
-            gsh: gsh2,
-          });
-        } else {
-          throw e;
-        }
+      // studentId aus config (kein Log!)
+      const studentId = (this.config.studentId || '').toString().trim();
+      if (!studentId) {
+        throw new Error('studentId missing. Please set it in the adapter settings.');
       }
 
-      // 7) build model (minimal: events/lessons -> today/tomorrow)
-      const model = this._buildModelFromCurrentTT(tt, { dateFrom, dateTo });
-      await this.writeModel(model);
+      const args = [
+        null,
+        {
+          year: Number(dateFrom.slice(0, 4)),
+          datefrom: dateFrom,
+          dateto: dateTo,
+          table: 'students',
+          id: String(studentId),
+          showColors: true,
+          showIgroupsInClasses: false,
+          showOrig: true,
+          log_module: 'CurrentTTView',
+        },
+      ];
+
+      // 6) currentttGetData
+      const tt = await this.eduClient.currentttGetData({ args, gsh });
+
+      // 7) model bauen + states schreiben (hier erstmal minimal: Ferien + next/today/tomorrow leer, weil deine Response gerade Ferien-Events zeigt)
+      const built = this.buildModelFromTT(tt);
+
+      await this.writeModel(built);
 
       this.setState('info.connection', true, true);
       await this.setStateAsync('meta.lastSync', Date.now(), true);
+
     } catch (e) {
-      await this.setStateAsync('meta.lastError', String(e?.message || e), true);
       this.setState('info.connection', false, true);
+      await this.setStateAsync('meta.lastError', String(e?.message || e), true);
       throw e;
     }
   }
 
-  async getOrFetchGsh(allowCache = true) {
-    // cache 30 min
-    const maxAgeMs = 30 * 60 * 1000;
-    if (allowCache && this._gsh && Date.now() - this._gshFetchedAt < maxAgeMs) {
-      return this._gsh;
-    }
+  async handleCaptchaBlock(url, reasonText) {
+    // Pause 60 Minuten, Timer stoppen
+    const pauseMs = 60 * 60 * 1000;
+    this.pausedUntil = Date.now() + pauseMs;
 
-    const viewer = await this.eduClient.getTTViewerData();
-    this._gsh = viewer.gsh;
-    this._gshFetchedAt = Date.now();
-    return this._gsh;
-  }
-
-  _computeDateRange(weekView) {
-    const now = new Date();
-    const today = new Date(now);
-    const tomorrow = new Date(Date.now() + 86400000);
-
-    let dateFrom = today.toISOString().slice(0, 10);
-    let dateTo = tomorrow.toISOString().slice(0, 10);
-
-    if (weekView) {
-      // Mo..So der aktuellen Woche
-      const d = new Date();
-      const day = (d.getDay() + 6) % 7; // Mo=0
-      const monday = new Date(d);
-      monday.setDate(d.getDate() - day);
-      const sunday = new Date(monday);
-      sunday.setDate(monday.getDate() + 6);
-
-      dateFrom = monday.toISOString().slice(0, 10);
-      dateTo = sunday.toISOString().slice(0, 10);
-    }
-
-    // year in request seems to be week-year; we use current year of dateFrom
-    const year = Number(dateFrom.slice(0, 4));
-    return { dateFrom, dateTo, year };
-  }
-
-  _buildModelFromCurrentTT(tt, { dateFrom, dateTo }) {
-    const model = this.emptyModel();
-
-    // Set dates for today/tomorrow
-    const today = new Date();
-    const tomorrow = new Date(Date.now() + 86400000);
-    model.today.date = today.toISOString().slice(0, 10);
-    model.tomorrow.date = tomorrow.toISOString().slice(0, 10);
-
-    const items = tt?.r?.ttitems || [];
-    const todayKey = model.today.date;
-    const tomorrowKey = model.tomorrow.date;
-
-    // very simple extraction: create "entries" sorted by starttime
-    const perDay = { [todayKey]: [], [tomorrowKey]: [] };
-
-    for (const it of items) {
-      const d = it?.date;
-      if (!d || (!perDay[d] && d !== todayKey && d !== tomorrowKey)) continue;
-
-      // Skip full-day events unless you want them as lesson entries
-      const isFullDay = it?.starttime === '00:00' && it?.endtime === '24:00';
-      const entry = {
-        start: it?.starttime || '',
-        end: it?.endtime || '',
-        subject: it?.name || it?.subjectname || it?.subjectid || it?.type || '',
-        room: (it?.classroomids || []).join(','),
-        teacher: (it?.teacherids || []).join(','),
-        changed: !!it?.changed,
-        canceled: !!it?.cancelled,
-        changeText: it?.changetext || '',
-      };
-
-      if (isFullDay) {
-        // put as first entry for the day (holiday etc.)
-        perDay[d] = perDay[d] || [];
-        perDay[d].push({ ...entry, start: '00:00', end: '24:00' });
-      } else {
-        perDay[d] = perDay[d] || [];
-        perDay[d].push(entry);
-      }
-    }
-
-    // sort by time
-    const sortByStart = (a, b) => String(a.start || '').localeCompare(String(b.start || ''));
-
-    model.today.lessons = (perDay[todayKey] || []).sort(sortByStart).slice(0, this.maxLessons);
-    model.tomorrow.lessons = (perDay[tomorrowKey] || []).sort(sortByStart).slice(0, this.maxLessons);
-
-    // next: pick next upcoming entry from today then tomorrow
-    const now = new Date();
-    const nowHHMM = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-
-    const findNext = (dayKey, list) => {
-      for (const l of list) {
-        if (l.start && l.start !== '00:00' && l.start >= nowHHMM) {
-          return { when: dayKey === todayKey ? 'today' : 'tomorrow', ...l };
-        }
-      }
-      return null;
-    };
-
-    model.next = findNext(todayKey, model.today.lessons) || findNext(tomorrowKey, model.tomorrow.lessons) || null;
-
-    return model;
-  }
-
-  _makeAbsoluteCaptchaUrl(captchaSrc) {
-    if (!captchaSrc) return '';
-    if (/^https?:\/\//i.test(captchaSrc)) return captchaSrc;
-    // relative -> absolute
-    const base = this.eduHttp?.baseUrl || '';
-    return `${base}${captchaSrc.startsWith('/') ? '' : '/'}${captchaSrc}`;
-  }
-
-  async _handleCaptchaBlock(captchaUrl, reason) {
-    const blockMinutes = 60;
-    this.blockedUntil = Date.now() + blockMinutes * 60 * 1000;
-    this.blockReason = 'Captcha required by EduPage';
-
-    await this.setStateAsync('meta.blockedUntil', this.blockedUntil, true);
-
-    if (captchaUrl) {
-      await this.setStateAsync('meta.captchaUrl', captchaUrl, true);
-    }
+    await this.setStateAsync('meta.pausedUntil', this.pausedUntil, true);
+    await this.setStateAsync('meta.captchaUrl', url || '', true);
+    await this.setStateAsync('meta.lastError', String(reasonText || 'Captcha required'), true);
 
     this.setState('info.connection', false, true);
 
-    this.log.error(
-      `Captcha nötig / verdächtige Aktivität erkannt. Öffne diese URL im Browser, gib das Passwort erneut ein und tippe den Text aus dem Bild ein:\n` +
-        `${captchaUrl || '(no captcha url provided)'}`
-    );
-    this.log.warn(`[Backoff] Captcha required by EduPage. Next try in ~${blockMinutes} min.`);
-
-    // stop adapter automatically (user requested)
-    try {
-      if (this.timer) {
-        clearInterval(this.timer);
-        this.timer = null;
-      }
-
-      // terminate is supported by adapter-core; fallback to "do nothing further"
-      if (typeof this.terminate === 'function') {
-        // exitCode 0 so it doesn't look like a crash
-        this.terminate('Captcha required - stopped by adapter', 0);
-      } else {
-        this.log.warn('Adapter cannot terminate programmatically in this environment. It will stay idle.');
-      }
-    } catch (e) {
-      this.log.warn(`Could not stop adapter automatically: ${e?.message || e}`);
+    if (this.timer) {
+      clearInterval(this.timer);
+      this.timer = null;
     }
+
+    if (url) {
+      this.log.error(
+        `Captcha nötig / verdächtige Aktivität erkannt. Öffne diese URL im Browser, logge dich neu ein und tippe den Text aus dem Bild ein: ${url}`
+      );
+    } else {
+      this.log.error(
+        'Captcha nötig / verdächtige Aktivität erkannt. Öffne EduPage im Browser, logge dich neu ein und löse die Captcha-Abfrage.'
+      );
+    }
+
+    this.log.warn(`[Backoff] Captcha required by EduPage. Adapter paused for ~60 min. Please restart adapter after solving captcha.`);
   }
 
-  // ===================== writing states =====================
+  // ---------------- model building ----------------
 
   emptyModel() {
     const today = new Date();
     const tomorrow = new Date(Date.now() + 86400000);
     return {
-      today: { date: today.toISOString().slice(0, 10), lessons: [] },
-      tomorrow: { date: tomorrow.toISOString().slice(0, 10), lessons: [] },
+      today: { date: today.toISOString().slice(0, 10), lessons: [], holiday: false, holidayName: '' },
+      tomorrow: { date: tomorrow.toISOString().slice(0, 10), lessons: [], holiday: false, holidayName: '' },
       next: null,
     };
   }
 
+  buildModelFromTT(tt) {
+    const model = this.emptyModel();
+    const r = tt?.r || tt; // manchmal kommt {r:{...}}
+
+    // Ferien aus ttitems ableiten (type=event, ganztägig)
+    const items = Array.isArray(r?.ttitems) ? r.ttitems : [];
+    const today = model.today.date;
+    const tomorrow = model.tomorrow.date;
+
+    const tHoliday = items.find(x => x?.type === 'event' && x?.date === today && typeof x?.name === 'string' && x.name.toLowerCase().includes('ferien'));
+    const tmHoliday = items.find(x => x?.type === 'event' && x?.date === tomorrow && typeof x?.name === 'string' && x.name.toLowerCase().includes('ferien'));
+
+    if (tHoliday) {
+      model.today.holiday = true;
+      model.today.holidayName = tHoliday.name || '';
+    }
+    if (tmHoliday) {
+      model.tomorrow.holiday = true;
+      model.tomorrow.holidayName = tmHoliday.name || '';
+    }
+
+    // Lessons Parsing: kommt bei dir später, wenn "normale" Stunden da sind.
+    // Für jetzt lassen wir lessons leer (exists=false States werden gesetzt).
+
+    return model;
+  }
+
+  // ---------------- state writing ----------------
+
   async writeModel(model) {
     await this.setStateAsync('today.date', model.today.date, true);
     await this.setStateAsync('tomorrow.date', model.tomorrow.date, true);
+
+    await this.setStateAsync('today.holiday', !!model.today.holiday, true);
+    await this.setStateAsync('today.holidayName', model.today.holidayName || '', true);
+    await this.setStateAsync('tomorrow.holiday', !!model.tomorrow.holiday, true);
+    await this.setStateAsync('tomorrow.holidayName', model.tomorrow.holidayName || '', true);
 
     await this.writeLessons('today', model.today.lessons || []);
     await this.writeLessons('tomorrow', model.tomorrow.lessons || []);
@@ -459,7 +358,7 @@ class Edupage extends utils.Adapter {
 }
 
 if (require.main !== module) {
-  module.exports = options => new Edupage(options);
+  module.exports = (options) => new Edupage(options);
 } else {
   new Edupage();
 }
