@@ -303,49 +303,77 @@ class Edupage extends utils.Adapter {
     };
   }
 
-  parseCurrentTt(ttRes) {
-    const model = this.emptyModel();
-    const r = ttRes?.r || ttRes?.data?.r || ttRes || {};
-    const items = r?.ttitems || [];
+parseCurrentTt(ttRes) {
+  const model = this.emptyModel();
+  const r = ttRes?.r || ttRes?.data?.r || ttRes || {};
 
-    const byDateEvent = new Map();
-    for (const it of items) {
-      if (it?.type === 'event' && it?.date && it?.name) {
-        if (!byDateEvent.has(it.date)) byDateEvent.set(it.date, it.name);
-      }
+  // try multiple containers (EduPage varies)
+  const items =
+    r?.ttitems ||
+    r?.eventitems ||
+    r?.events ||
+    r?.items ||
+    [];
+
+  const getText = (it) => it?.name || it?.title || it?.caption || it?.text || '';
+  const getType = (it) => String(it?.type || '').toLowerCase();
+
+  const isHolidayText = (txt) => {
+    const t = String(txt || '').toLowerCase();
+    return (
+      t.includes('ferien') ||
+      t.includes('holiday') ||
+      t.includes('vacation') ||
+      t.includes('break') ||
+      t.includes('school closed') ||
+      t.includes('frei') ||
+      t.includes('unterrichtsfrei')
+    );
+  };
+
+  // map single-date events
+  const byDateEvent = new Map();
+
+  for (const it of items) {
+    const type = getType(it);
+    const txt = getText(it);
+    if (!txt) continue;
+
+    // 1) single date event
+    if (it?.date && (type === 'event' || type === 'holiday' || type === 'dayevent')) {
+      const d = String(it.date);
+      if (!byDateEvent.has(d)) byDateEvent.set(d, txt);
+      continue;
     }
 
-    // existing string states
-    model.today.ferien = byDateEvent.get(model.today.date) || '';
-    model.tomorrow.ferien = byDateEvent.get(model.tomorrow.date) || '';
+    // 2) ranged event: datefrom/dateto (inclusive)
+    if (it?.datefrom && it?.dateto && (type === 'event' || type === 'holiday')) {
+      const from = String(it.datefrom).slice(0, 10);
+      const to = String(it.dateto).slice(0, 10);
 
-    // holiday detection: event present AND looks like holiday
-    const isHolidayText = (txt) => {
-      const t = String(txt || '').toLowerCase();
-      // matches common DE + EN
-      return (
-        t.includes('ferien') ||
-        t.includes('holiday') ||
-        t.includes('vacation') ||
-        t.includes('break') ||
-        t.includes('school closed') ||
-        t.includes('frei') ||
-        t.includes('unterrichtsfrei')
-      );
-    };
-
-    const todayTxt = model.today.ferien;
-    const tomorrowTxt = model.tomorrow.ferien;
-
-    model.today.holiday = !!todayTxt && isHolidayText(todayTxt);
-    model.today.holidayName = model.today.holiday ? todayTxt : '';
-
-    model.tomorrow.holiday = !!tomorrowTxt && isHolidayText(tomorrowTxt);
-    model.tomorrow.holidayName = model.tomorrow.holiday ? tomorrowTxt : '';
-
-    return model;
+      // only care about today/tomorrow here
+      if (model.today.date >= from && model.today.date <= to) {
+        if (!byDateEvent.has(model.today.date)) byDateEvent.set(model.today.date, txt);
+      }
+      if (model.tomorrow.date >= from && model.tomorrow.date <= to) {
+        if (!byDateEvent.has(model.tomorrow.date)) byDateEvent.set(model.tomorrow.date, txt);
+      }
+    }
   }
 
+  // existing string states
+  model.today.ferien = byDateEvent.get(model.today.date) || '';
+  model.tomorrow.ferien = byDateEvent.get(model.tomorrow.date) || '';
+
+  // holiday boolean + name
+  model.today.holiday = !!model.today.ferien && isHolidayText(model.today.ferien);
+  model.today.holidayName = model.today.holiday ? model.today.ferien : '';
+
+  model.tomorrow.holiday = !!model.tomorrow.ferien && isHolidayText(model.tomorrow.ferien);
+  model.tomorrow.holidayName = model.tomorrow.holiday ? model.tomorrow.ferien : '';
+
+  return model;
+}
 
   async writeModel(model) {
     await this.setStateAsync('today.date', model.today.date, true);
@@ -369,7 +397,6 @@ class Edupage extends utils.Adapter {
     await this.setStateAsync('next.canceled', !!n.canceled, true);
     await this.setStateAsync('next.changeText', n.changeText || '', true);
   }
-
 
   onUnload(callback) {
     try {
