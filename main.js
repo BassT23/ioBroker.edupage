@@ -253,7 +253,7 @@ class Edupage extends utils.Adapter {
         },
       ];
 
-      const ttRes = await this.eduClient.currentttGetData({ args, gsh, guPath });
+      let ttRes = await this.eduClient.currentttGetData({ args, gsh, guPath });
 
       // If EduPage returns reload-only, the context/_gsh is likely wrong -> refresh and retry once
       const hasReloadOnly = ttRes && typeof ttRes === 'object' && 'reload' in ttRes && !('r' in ttRes);
