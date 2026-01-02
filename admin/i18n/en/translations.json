@@ -10,5 +10,9 @@
   "cfg_intervalMin_help": "Minimum: 5 minutes",
   "cfg_maxLessons": "Max lessons per day",
   "cfg_maxLessons_help": "Minimum: 6",
-  "cfg_enableWeek": "Week view"
+  "cfg_enableWeek": "Week view",
+  "cfg_studentId": "Student ID",
+  "cfg_studentId_help": "In EduPage DevTools → Network → currentttGetData → Payload → field \"id\" (number only, e.g. 1234).",
+  "cfg_gsh": "_gsh (optional)",
+  "cfg_gsh_help": "In EduPage DevTools → Network → currentttGetData → Payload → \"_gsh\" (8 hex). If set, auto-detect is not required."
 }
