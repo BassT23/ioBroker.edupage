@@ -189,6 +189,10 @@ class Edupage extends utils.Adapter {
         throw new Error(loginRes?.err?.error_text || 'Login failed');
       }
 
+      // 2.5) post-login warmup to obtain full session cookies (e.g. edusrs)
+      await this.eduHttp.get('/user/').catch(() => {});
+      await this.eduHttp.get('/dashboard/').catch(() => {});
+
       // 3) warmup timetable
       await this.eduClient.warmUpTimetable({ guPath });
 
@@ -219,8 +223,6 @@ class Edupage extends utils.Adapter {
         await this.setStateAsync('info.connection', true, true);
         return;
       }
-
-      gshCfg = (this.config.gsh ?? '').toString().trim();
 
       // 6) _gsh must be provided from DevTools (auto-detect is unreliable)
       if (!gshCfg) {
