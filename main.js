@@ -155,7 +155,7 @@ class Edupage extends utils.Adapter {
 
       // 0) getData
       const md = await this.eduClient.getLoginData().catch(() => null);
-      const guPath = (md?.gu && String(md.gu)) ? String(md.gu) : this.eduClient.getTimetableRefererPath();
+      const guPath = this.eduClient.getDashboardTimetableRefererPath();
 
       // 1) token
       const tokRes = await this.eduClient.getToken({
