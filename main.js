@@ -7,15 +7,16 @@ const { EdupageClient } = require('./lib/edupageClient');
 class Edupage extends utils.Adapter {
   constructor(options) {
     super({ ...options, name: 'edupage' });
+
     this.on('ready', this.onReady.bind(this));
     this.on('unload', this.onUnload.bind(this));
 
     this.timer = null;
     this.maxLessons = 12;
-    this.pausedUntil = 0;
 
-    this.eduHttp = null;
-    this.eduClient = null;
+    // Backoff / stop logic
+    this.captchaBackoffUntil = 0;
+    this.stopOnCaptcha = true; // requested: stop adapter when captcha happens
   }
 
   async onReady() {
@@ -23,44 +24,65 @@ class Edupage extends utils.Adapter {
 
     const baseUrl = (this.config.baseUrl || '').trim().replace(/\/+$/, '');
     if (!baseUrl) {
+      // IMPORTANT: do not use real school name in example text
       this.log.error('Please set baseUrl (e.g. https://myschool.edupage.org)');
       return;
     }
+
     if (!this.config.username || !this.config.password) {
       this.log.warn('No username/password set yet. Adapter stays idle until configured.');
       return;
     }
 
+    // derive subdomain from baseUrl -> "myschool" (do NOT log the real one)
+    const m = baseUrl.match(/^https?:\/\/([^./]+)\.edupage\.org/i);
+    const schoolSubdomain = m?.[1] || '';
+
+    // config
     this.maxLessons = Math.max(6, Number(this.config.maxLessons || 12));
+    const intervalMin = Math.max(5, Number(this.config.intervalMin || 15));
+    const weekView = !!this.config.enableWeek;
+
+    // IMPORTANT: avoid logging private IDs; use placeholder in logs
+    const studentId = (this.config.studentId ?? '').toString().trim();
+    const gsh = (this.config.gsh ?? '').toString().trim();
+
     await this.ensureStates();
 
+    // init http+client (cookies persist)
     this.eduHttp = new EdupageHttp({ baseUrl, log: this.log });
     this.eduClient = new EdupageClient({ http: this.eduHttp, log: this.log });
 
-    await this.syncOnce().catch(e => this.log.warn(`Initial sync failed: ${e?.message || e}`));
+    // one-time first sync
+    await this.syncOnce({ schoolSubdomain, weekView, studentId, gsh }).catch(e =>
+      this.log.warn(`Initial sync failed: ${e?.message || e}`)
+    );
 
-    const intervalMin = Math.max(5, Number(this.config.intervalMin || 15));
+    // periodic
     this.timer = setInterval(() => {
-      this.syncOnce().catch(e => this.log.warn(`Sync failed: ${e?.message || e}`));
+      this.syncOnce({ schoolSubdomain, weekView, studentId, gsh }).catch(e =>
+        this.log.warn(`Sync failed: ${e?.message || e}`)
+      );
     }, intervalMin * 60 * 1000);
   }
+
+  // ----- STATES -----
 
   async ensureStates() {
     const defs = [
       ['meta.lastSync', 'number', 'Last sync timestamp (ms)'],
       ['meta.lastError', 'string', 'Last error message'],
-      ['meta.captchaUrl', 'string', 'Captcha URL if login is blocked'],
-      ['meta.pausedUntil', 'number', 'Paused until timestamp (ms)'],
+      ['meta.captchaRequired', 'boolean', 'Captcha required by EduPage'],
+      ['meta.captchaUrl', 'string', 'Captcha URL (open in browser)'],
+      ['meta.captchaUntil', 'number', 'Backoff until timestamp (ms)'],
 
       ['today.date', 'string', 'Today date'],
       ['tomorrow.date', 'string', 'Tomorrow date'],
 
-      ['today.holiday', 'boolean', 'Today is holiday/vacation'],
-      ['today.holidayName', 'string', 'Holiday/vacation name today'],
-      ['tomorrow.holiday', 'boolean', 'Tomorrow is holiday/vacation'],
-      ['tomorrow.holidayName', 'string', 'Holiday/vacation name tomorrow'],
+      ['week.dateFrom', 'string', 'Week range start (YYYY-MM-DD)'],
+      ['week.dateTo', 'string', 'Week range end (YYYY-MM-DD)'],
 
-      ['next.when', 'string', 'today|tomorrow'],
+      ['next.when', 'string', 'today|tomorrow|week'],
       ['next.subject', 'string', 'Next subject'],
       ['next.room', 'string', 'Next room'],
       ['next.teacher', 'string', 'Next teacher'],
@@ -69,6 +91,10 @@ class Edupage extends utils.Adapter {
       ['next.changed', 'boolean', 'Next changed'],
       ['next.canceled', 'boolean', 'Next canceled'],
       ['next.changeText', 'string', 'Next change text'],
+
+      // extra: show holidays/ferien as single datapoint
+      ['today.ferien', 'string', 'Holiday/event text if present (today)'],
+      ['tomorrow.ferien', 'string', 'Holiday/event text if present (tomorrow)'],
     ];
 
     for (const [id, type, name] of defs) {
@@ -84,11 +110,17 @@ class Edupage extends utils.Adapter {
         await this.ensureLessonStates(`${day}.lessons.${i}`);
       }
     }
+
+    // optional: week view states (reuse today/tomorrow structure; week is handled in model)
+    for (let i = 0; i < this.maxLessons; i++) {
+      await this.ensureLessonStates(`week.lessons.${i}`);
+    }
   }
 
   async ensureLessonStates(base) {
     const defs = [
       ['exists', 'boolean', 'Lesson exists'],
+      ['date', 'string', 'YYYY-MM-DD (for week)'],
       ['start', 'string', 'Start HH:MM'],
       ['end', 'string', 'End HH:MM'],
       ['subject', 'string', 'Subject'],
@@ -97,6 +129,7 @@ class Edupage extends utils.Adapter {
       ['changed', 'boolean', 'Changed'],
       ['canceled', 'boolean', 'Canceled'],
       ['changeText', 'string', 'Change text'],
+      ['type', 'string', 'lesson|event'],
     ];
 
     for (const [id, type, name] of defs) {
@@ -108,81 +141,105 @@ class Edupage extends utils.Adapter {
     }
   }
 
-  async syncOnce() {
-    const now = Date.now();
-    if (this.pausedUntil && now < this.pausedUntil) return;
+  // ----- SYNC -----
+
+  async syncOnce({ schoolSubdomain, weekView, studentId, gsh }) {
+    // captcha backoff?
+    if (this.captchaBackoffUntil && Date.now() < this.captchaBackoffUntil) {
+      const mins = Math.ceil((this.captchaBackoffUntil - Date.now()) / 60000);
+      this.log.warn(`[Backoff] Captcha required by EduPage. Next try in ~${mins} min.`);
+      return;
+    }
 
     try {
       await this.setStateAsync('meta.lastError', '', true);
+      await this.setStateAsync('meta.captchaRequired', false, true);
       await this.setStateAsync('meta.captchaUrl', '', true);
 
+      // 0) getData
       const md = await this.eduClient.getLoginData().catch(() => null);
 
+      // 1) token
       const tokRes = await this.eduClient.getToken({
         username: this.config.username,
-        edupage: this.eduClient.school,
+        edupage: schoolSubdomain,
       });
       if (!tokRes?.token) throw new Error(tokRes?.err?.error_text || 'No token');
 
-      const fallbackGu = md?.gu ?? this.eduClient.getTimetableRefererPath();
-
+      // 2) login
       const loginRes = await this.eduClient.login({
         username: this.config.username,
         password: this.config.password,
         userToken: tokRes.token,
-        edupage: this.eduClient.school,
+        edupage: schoolSubdomain,
         ctxt: '',
         tu: md?.tu ?? null,
-        gu: fallbackGu,
+        gu: md?.gu ?? null,
         au: md?.au ?? null,
       });
 
-      const captchaSrc = loginRes?.captchaSrc || loginRes?.err?.captchaSrc;
-      const needCaptcha =
-        loginRes?.needCaptcha === '1' ||
-        /captcha|verdächt/i.test(String(loginRes?.err?.error_text || ''));
+      // captcha detection (German message you saw)
+      const errText = loginRes?.err?.error_text || '';
+      const needCaptcha = /verdächtige|zusätzlich überprüfen|Text aus dem Bild|captcha/i.test(errText);
 
-      if (needCaptcha || captchaSrc) {
-        const url = captchaSrc
-          ? (captchaSrc.startsWith('http') ? captchaSrc : (this.eduHttp.baseUrl.replace(/\/+$/, '') + captchaSrc))
-          : '';
-        await this.handleCaptchaBlock(url, loginRes?.err?.error_text || 'Captcha required');
+      if (needCaptcha || loginRes?.needCaptcha === '1' || loginRes?.captchaSrc) {
+        const captchaUrl = this.makeAbsoluteUrl(loginRes?.captchaSrc || '');
+        await this.handleCaptcha(captchaUrl || null);
         return;
       }
 
-      if (loginRes?.status !== 'OK') throw new Error(loginRes?.err?.error_text || 'Login failed');
+      if (loginRes?.status !== 'OK') {
+        throw new Error(loginRes?.err?.error_text || 'Login failed');
+      }
 
-      // Warmup in Adapter-Session
+      // 3) warm up timetable (required for endpoint access)
       await this.eduClient.warmUpTimetable();
 
-      // ✅ Option A: config.gsh bevorzugen, sonst auto-detect
-      const gshCfg = (this.config.gsh || '').toString().trim();
-      const gsh = await this.eduClient.getGsh({ gshOverride: gshCfg });
-
+      // 4) build date range
       const model = this.emptyModel();
-      const weekView = !!this.config.enableWeek;
+      const today = new Date();
+      const yyyy = today.getFullYear();
 
       let dateFrom = model.today.date;
       let dateTo = model.tomorrow.date;
 
       if (weekView) {
+        // Mo..So of current week
         const d = new Date();
-        const day = (d.getDay() + 6) % 7;
+        const day = (d.getDay() + 6) % 7; // Mon=0
         const monday = new Date(d);
         monday.setDate(d.getDate() - day);
         const sunday = new Date(monday);
         sunday.setDate(monday.getDate() + 6);
+
         dateFrom = monday.toISOString().slice(0, 10);
         dateTo = sunday.toISOString().slice(0, 10);
+
+        await this.setStateAsync('week.dateFrom', dateFrom, true);
+        await this.setStateAsync('week.dateTo', dateTo, true);
       }
 
-      const studentId = (this.config.studentId || '').toString().trim();
-      if (!studentId) throw new Error('studentId missing. Please set it in the adapter settings.');
+      // 5) timetable call
+      // IMPORTANT: do not log real studentId
+      if (!studentId) {
+        this.log.warn('No studentId set yet. Please add it in adapter settings (example: 1234).');
+        // still set connection true because login worked
+        this.setState('info.connection', true, true);
+        await this.setStateAsync('meta.lastSync', Date.now(), true);
+        return;
+      }
+
+      if (!gsh) {
+        // tell user to copy from DevTools (do not expose private values)
+        throw new Error(
+          'Could not detect _gsh automatically. Please copy it from DevTools and put it into adapter settings.'
+        );
+      }
 
       const args = [
         null,
         {
-          year: Number(dateFrom.slice(0, 4)),
+          year: yyyy,
           datefrom: dateFrom,
           dateto: dateTo,
           table: 'students',
@@ -194,80 +251,179 @@ class Edupage extends utils.Adapter {
         },
       ];
 
-      const tt = await this.eduClient.currentttGetData({ args, gsh });
-      const built = this.buildModelFromTT(tt);
+      const ttRes = await this.eduClient.currentttGetData({ args, gsh });
 
-      await this.writeModel(built);
+      // 6) parse model (minimal: holidays/events + next)
+      const parsed = this.parseCurrentTt(ttRes, { dateFrom, dateTo, weekView });
+      await this.writeModel(parsed);
 
       this.setState('info.connection', true, true);
       await this.setStateAsync('meta.lastSync', Date.now(), true);
-
     } catch (e) {
+      const msg = String(e?.message || e);
+
+      await this.setStateAsync('meta.lastError', msg, true);
       this.setState('info.connection', false, true);
-      await this.setStateAsync('meta.lastError', String(e?.message || e), true);
+
+      // If 404 on timetable endpoint, log full URL (already safe) but not IDs
+      if (msg.includes('404')) {
+        this.log.error('Timetable request returned HTTP 404. This usually means missing/invalid referer context.');
+      }
+
       throw e;
     }
   }
 
-  async handleCaptchaBlock(url, reasonText) {
-    const pauseMs = 60 * 60 * 1000;
-    this.pausedUntil = Date.now() + pauseMs;
-
-    await this.setStateAsync('meta.pausedUntil', this.pausedUntil, true);
-    await this.setStateAsync('meta.captchaUrl', url || '', true);
-    await this.setStateAsync('meta.lastError', String(reasonText || 'Captcha required'), true);
-
-    this.setState('info.connection', false, true);
-
-    if (this.timer) {
-      clearInterval(this.timer);
-      this.timer = null;
-    }
-
-    if (url) {
-      this.log.error(`Captcha nötig / verdächtige Aktivität erkannt. Öffne diese URL im Browser und löse das Captcha: ${url}`);
-    } else {
-      this.log.error('Captcha nötig / verdächtige Aktivität erkannt. Öffne EduPage im Browser und löse das Captcha.');
-    }
-
-    this.log.warn('[Backoff] Captcha required by EduPage. Adapter paused for ~60 min. Please restart adapter after solving captcha.');
+  makeAbsoluteUrl(path) {
+    if (!path) return '';
+    if (/^https?:\/\//i.test(path)) return path;
+    const base = (this.eduHttp?.baseUrl || '').replace(/\/+$/, '');
+    return base + (path.startsWith('/') ? path : `/${path}`);
   }
+
+  async handleCaptcha(captchaUrl) {
+    // store as state (requested)
+    await this.setStateAsync('meta.captchaRequired', true, true);
+    await this.setStateAsync('meta.captchaUrl', captchaUrl || '', true);
+
+    // backoff 60 minutes
+    this.captchaBackoffUntil = Date.now() + 60 * 60 * 1000;
+    await this.setStateAsync('meta.captchaUntil', this.captchaBackoffUntil, true);
+
+    if (captchaUrl) {
+      this.log.error(
+        `Captcha nötig / verdächtige Aktivität erkannt. Öffne diese URL im Browser, gib das Passwort erneut ein und tippe den Text aus dem Bild ein: ${captchaUrl}`
+      );
+    } else {
+      this.log.error(
+        'Captcha nötig / verdächtige Aktivität erkannt. Bitte im Browser bei EduPage erneut anmelden und Captcha lösen.'
+      );
+    }
+
+    // requested: stop adapter automatically when captcha occurs
+    if (this.stopOnCaptcha) {
+      this.log.warn('Stopping adapter due to captcha requirement (manual restart after captcha solved).');
+      // clear timer to stop further retries
+      if (this.timer) {
+        clearInterval(this.timer);
+        this.timer = null;
+      }
+      // terminate adapter
+      this.terminate?.('Captcha required by EduPage').catch(() => {});
+    }
+  }
+
+  // ----- MODEL -----
 
   emptyModel() {
     const today = new Date();
     const tomorrow = new Date(Date.now() + 86400000);
     return {
-      today: { date: today.toISOString().slice(0, 10), lessons: [], holiday: false, holidayName: '' },
-      tomorrow: { date: tomorrow.toISOString().slice(0, 10), lessons: [], holiday: false, holidayName: '' },
+      today: { date: today.toISOString().slice(0, 10), lessons: [], ferien: '' },
+      tomorrow: { date: tomorrow.toISOString().slice(0, 10), lessons: [], ferien: '' },
+      week: { dateFrom: '', dateTo: '', lessons: [] },
       next: null,
     };
   }
 
-  buildModelFromTT(tt) {
+  parseCurrentTt(ttRes, { weekView }) {
     const model = this.emptyModel();
-    const r = tt?.r || tt;
-    const items = Array.isArray(r?.ttitems) ? r.ttitems : [];
+    const r = ttRes?.r || ttRes?.data?.r || ttRes || {};
+    const items = r?.ttitems || [];
 
-    const today = model.today.date;
-    const tomorrow = model.tomorrow.date;
+    // Ferien / events: pick first matching per day
+    const byDateEvents = new Map();
+    for (const it of items) {
+      if (it?.type === 'event' && it?.date && it?.name) {
+        if (!byDateEvents.has(it.date)) byDateEvents.set(it.date, it.name);
+      }
+    }
 
-    const tHoliday = items.find(x => x?.type === 'event' && x?.date === today && typeof x?.name === 'string' && x.name.toLowerCase().includes('ferien'));
-    const tmHoliday = items.find(x => x?.type === 'event' && x?.date === tomorrow && typeof x?.name === 'string' && x.name.toLowerCase().includes('ferien'));
+    model.today.ferien = byDateEvents.get(model.today.date) || '';
+    model.tomorrow.ferien = byDateEvents.get(model.tomorrow.date) || '';
 
-    if (tHoliday) { model.today.holiday = true; model.today.holidayName = tHoliday.name || ''; }
-    if (tmHoliday) { model.tomorrow.holiday = true; model.tomorrow.holidayName = tmHoliday.name || ''; }
+    // For now: store only events as "lessons" so user sees something + next
+    // (Real lesson parsing can be added later once non-holiday periods appear.)
+    const lessonsToday = [];
+    const lessonsTomorrow = [];
+
+    for (const it of items) {
+      if (it?.date === model.today.date) lessonsToday.push(this.mapItemToLesson(it));
+      if (it?.date === model.tomorrow.date) lessonsTomorrow.push(this.mapItemToLesson(it));
+    }
+
+    model.today.lessons = lessonsToday.slice(0, this.maxLessons);
+    model.tomorrow.lessons = lessonsTomorrow.slice(0, this.maxLessons);
+
+    // "next" = next item from now (very simple)
+    const now = new Date();
+    const upcoming = items
+      .map(it => {
+        if (!it?.date || !it?.starttime) return null;
+        const dt = new Date(`${it.date}T${it.starttime}:00`);
+        return { it, dt };
+      })
+      .filter(Boolean)
+      .filter(x => x.dt.getTime() >= now.getTime())
+      .sort((a, b) => a.dt - b.dt)[0];
+
+    if (upcoming?.it) {
+      const it = upcoming.it;
+      model.next = {
+        when: it.date === model.today.date ? 'today' : it.date === model.tomorrow.date ? 'tomorrow' : weekView ? 'week' : '',
+        subject: it.subjectid || it.name || '',
+        room: (it.classroomids && it.classroomids[0]) || '',
+        teacher: (it.teacherids && it.teacherids[0]) || '',
+        start: it.starttime || '',
+        end: it.endtime || '',
+        changed: false,
+        canceled: false,
+        changeText: it.type === 'event' ? it.name : '',
+      };
+    }
 
     return model;
+  }
+
+  mapItemToLesson(it) {
+    if (!it) return null;
+
+    if (it.type === 'event') {
+      return {
+        type: 'event',
+        date: it.date || '',
+        start: it.starttime || '',
+        end: it.endtime || '',
+        subject: it.name || '',
+        room: '',
+        teacher: '',
+        changed: false,
+        canceled: false,
+        changeText: it.name || '',
+      };
+    }
+
+    // fallback for lesson-like data
+    return {
+      type: 'lesson',
+      date: it.date || '',
+      start: it.starttime || '',
+      end: it.endtime || '',
+      subject: it.subjectid || '',
+      room: (it.classroomids && it.classroomids[0]) || '',
+      teacher: (it.teacherids && it.teacherids[0]) || '',
+      changed: false,
+      canceled: false,
+      changeText: '',
+    };
   }
 
   async writeModel(model) {
     await this.setStateAsync('today.date', model.today.date, true);
     await this.setStateAsync('tomorrow.date', model.tomorrow.date, true);
 
-    await this.setStateAsync('today.holiday', !!model.today.holiday, true);
-    await this.setStateAsync('today.holidayName', model.today.holidayName || '', true);
-    await this.setStateAsync('tomorrow.holiday', !!model.tomorrow.holiday, true);
-    await this.setStateAsync('tomorrow.holidayName', model.tomorrow.holidayName || '', true);
+    await this.setStateAsync('today.ferien', model.today.ferien || '', true);
+    await this.setStateAsync('tomorrow.ferien', model.tomorrow.ferien || '', true);
 
     await this.writeLessons('today', model.today.lessons || []);
     await this.writeLessons('tomorrow', model.tomorrow.lessons || []);
@@ -290,6 +446,8 @@ class Edupage extends utils.Adapter {
       const l = lessons[i] || null;
 
       await this.setStateAsync(`${base}.exists`, !!l, true);
+      await this.setStateAsync(`${base}.type`, l?.type || '', true);
+      await this.setStateAsync(`${base}.date`, l?.date || '', true);
       await this.setStateAsync(`${base}.start`, l?.start || '', true);
       await this.setStateAsync(`${base}.end`, l?.end || '', true);
       await this.setStateAsync(`${base}.subject`, l?.subject || '', true);
@@ -300,6 +458,8 @@ class Edupage extends utils.Adapter {
       await this.setStateAsync(`${base}.changeText`, l?.changeText || '', true);
     }
   }
+
+  // ----- UNLOAD -----
 
   onUnload(callback) {
     try {
@@ -312,7 +472,7 @@ class Edupage extends utils.Adapter {
 }
 
 if (require.main !== module) {
-  module.exports = (options) => new Edupage(options);
+  module.exports = options => new Edupage(options);
 } else {
   new Edupage();
 }

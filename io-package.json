@@ -35,16 +35,20 @@
       "0.0.1": {
         "en": "Initial working version with jsonConfig-based admin UI",
         "de": "Erste funktionierende Version mit jsonConfig Admin-UI"
+      },
+      "0.0.2": {
+        "en": "Build connection to edupage",
+        "de": "Anmeldung bei edupage erstellt"
       }
     },
     "dependencies": [
       {
-        "js-controller": ">=5.0.19"
+        "js-controller": ">=6.0.11"
       }
     ],
     "globalDependencies": [
       {
-        "admin": ">=6.17.14"
+        "admin": ">=7.6.17"
       }
     ]
   },
