@@ -75,6 +75,19 @@
         "pl": "Build connection to EduPage",
         "uk": "Build connection to EduPage",
         "zh-cn": "Build connection to EduPage"
+      },
+      "0.0.3": {
+        "en": "fetch data",
+        "de": "Daten bei EduPage abrufen",
+        "ru": "fetch data",
+        "pt": "fetch data",
+        "nl": "fetch data",
+        "fr": "fetch data",
+        "it": "fetch data",
+        "es": "fetch data",
+        "pl": "fetch data",
+        "uk": "fetch data",
+        "zh-cn": "fetch data"
       }
     },
     "dependencies": [
