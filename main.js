@@ -194,12 +194,6 @@ class Edupage extends utils.Adapter {
         throw new Error(loginRes?.err?.error_text || 'Login failed');
       }
 
-      // 2.5) post-login warmup to obtain full session cookies (e.g. edusrs)
-      await this.eduHttp.get('/login/').catch(() => {});
-      await this.eduHttp.get('/').catch(() => {});
-      await this.eduHttp.get('/dashboard/').catch(() => {});
-      await this.eduHttp.get('/dashboard/eb.php?mode=timetable').catch(() => {});
-
       // 3) warmup timetable
       await this.eduClient.warmUpTimetable({ guPath });
       // repeat timetable view once (some instances set context cookies on 2nd hit)
@@ -316,6 +310,7 @@ class Edupage extends utils.Adapter {
       );
 
     } catch (e) {
+      this.log.error(`Sync error: ${e?.stack || e}`);
       const msg = String(e?.message || e);
       await this.setStateAsync('meta.lastError', msg, true);
       await this.setStateAsync('info.connection', false, true);
