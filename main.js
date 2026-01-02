@@ -155,7 +155,12 @@ class Edupage extends utils.Adapter {
 
       // 0) getData
       const md = await this.eduClient.getLoginData().catch(() => null);
-      const guPath = this.eduClient.getDashboardTimetableRefererPath();
+
+      // IMPORTANT: use gu from getData if available (session/context specific)
+      const guPath =
+        (md?.gu && String(md.gu)) ? String(md.gu) : this.eduClient.getDashboardTimetableRefererPath();
+
+      this.log.info(`Login context guPath: ${guPath.startsWith('/') ? guPath : '[non-path]'}`);
 
       // 1) token
       const tokRes = await this.eduClient.getToken({
@@ -172,7 +177,7 @@ class Edupage extends utils.Adapter {
         edupage: schoolSubdomain,
         ctxt: '',
         tu: md?.tu ?? null,
-        gu: guPath,
+        gu: guPath,           // now md.gu (if present)
         au: md?.au ?? null
       });
 
@@ -194,7 +199,6 @@ class Edupage extends utils.Adapter {
       await this.eduHttp.get('/').catch(() => {});
       await this.eduHttp.get('/dashboard/').catch(() => {});
       await this.eduHttp.get('/dashboard/eb.php?mode=timetable').catch(() => {});
-
 
       // 3) warmup timetable
       await this.eduClient.warmUpTimetable({ guPath });
