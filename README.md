@@ -81,14 +81,13 @@ Initial alpha release
 
 ### 0.0.2
 Fully working login flow
-
 Timetable fetch via official EduPage endpoints
-
 Week view support
-
 Captcha detection & safe backoff
-
 Stability and config fixes
+
+### 0.0.3
+working on it
 
 ## License
 [MIT License. See LICENSE.](https://github.com/BassT23/ioBroker.edupage/tree/main?tab=MIT-1-ov-file#)
