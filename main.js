@@ -231,6 +231,9 @@ class Edupage extends utils.Adapter {
 
       // 7) timetable call
       const yyyy = new Date().getFullYear();
+      const sid = Number(studentId);
+      const eduId = sid > 0 ? String(-sid) : String(sid);
+
       const args = [
         null,
         {
@@ -238,12 +241,12 @@ class Edupage extends utils.Adapter {
           datefrom: dateFrom,
           dateto: dateTo,
           table: 'students',
-          id: String(studentId),
+          id: eduId,
           showColors: true,
           showIgroupsInClasses: false,
           showOrig: true,
-          log_module: 'CurrentTTView'
-        }
+          log_module: 'CurrentTTView',
+        },
       ];
 
       let ttRes = await this.eduClient.currentttGetData({ args, gsh, guPath });
