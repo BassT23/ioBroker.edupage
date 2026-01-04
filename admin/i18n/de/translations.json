@@ -14,5 +14,7 @@
   "cfg_studentId": "Schüler-ID",
   "cfg_studentId_help": "In EduPage DevTools → Network → currentttGetData → Payload → Feld \"id\" (nur Zahl, z.B. 1234).",
   "cfg_gsh": "_gsh (optional)",
-  "cfg_gsh_help": "In EduPage DevTools → Network → currentttGetData → Payload → \"_gsh\" (8 hex). Wenn gesetzt, kein Auto-Detect nötig."
+  "cfg_gsh_help": "In EduPage DevTools → Network → currentttGetData → Payload → \"_gsh\" (8 hex). Wenn gesetzt, kein Auto-Detect nötig.",
+  "cfg_edusrs": "edusrs Cookie (Fallback)",
+  "cfg_edusrs_help": "Nur für Debug: Wenn EduPage immer {\"reload\":true} liefert, edusrs aus dem Browser-Cookie hier eintragen. Später wird das automatisch."
 }

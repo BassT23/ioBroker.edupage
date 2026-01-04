@@ -67,6 +67,17 @@
       "lg": 6,
       "xl": 6
     },
+    "edusrs": {
+      "type": "text",
+      "label": "cfg_edusrs",
+      "help": "cfg_edusrs_help",
+      "placeholder": "paste edusrs cookie value",
+      "xs": 12,
+      "sm": 6,
+      "md": 6,
+      "lg": 6,
+      "xl": 6
+    },
     "intervalMin": {
       "type": "number",
       "label": "cfg_intervalMin",
